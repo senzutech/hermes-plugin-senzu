@@ -85,7 +85,7 @@ exactly that.
 
 | `hermes senzu setup --handover …` | When the assistant is stuck |
 |---|---|
-| `ask` (default) | The reply ends with an offer. Nothing is sent to Senzu until you answer « Senzu »; the assistant then files the handover itself. |
+| `ask` (default) | The reply ends with an offer. Nothing is sent to Senzu until you answer « Senzu »; the plugin turns that word into an explicit request, and the assistant files the handover itself. |
 | `auto` | You decided once that Senzu may step in. The plugin writes the dossier with your assistant's model, files it, and sends you the link to approve the work. Nothing is done before you click. |
 
 <details>

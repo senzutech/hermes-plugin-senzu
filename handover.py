@@ -210,6 +210,61 @@ def origin(session_id: str) -> dict | None:
     return None
 
 
+# --- The owner's « Senzu » ---------------------------------------------------------------------
+
+# How long an offer stays open for a one-word « Senzu ».
+OFFER_VALIDITY = 24 * 3600
+ACCEPTANCES = {"senzu", "ouisenzu", "oksenzu", "gosenzu", "vasysenzu"}
+HANDOVER_REQUEST = (
+    "Oui, je veux que Senzu prenne le relais. Appelle l'outil senzu_signaler (serveur MCP senzu) "
+    "avec un résumé de ce sur quoi tu bloques : l'objectif, le blocage, ce qui a déjà été essayé "
+    "et les services concernés. Puis transmets-moi le lien qu'il renvoie."
+)
+
+
+def _offers_file() -> Path:
+    return _store() / "offers.json"
+
+
+def _chat_key(platform: Any, chat_id: Any) -> str:
+    return f"{getattr(platform, 'value', platform)}:{chat_id}"
+
+
+def remember_offer(where: dict) -> None:
+    """Note that this chat was just offered Senzu, so a one-word answer can be understood."""
+    try:
+        offers = json.loads(_offers_file().read_text())
+    except (OSError, ValueError):
+        offers = {}
+    now = time.time()
+    offers = {k: v for k, v in offers.items() if now - v < OFFER_VALIDITY}
+    offers[_chat_key(where["platform"], where["chat_id"])] = now
+    try:
+        _store().mkdir(parents=True, exist_ok=True)
+        _offers_file().write_text(json.dumps(offers))
+    except OSError as error:
+        log.warning("senzu: offer not remembered: %s", error)
+
+
+def accepts_offer(text: str, platform: Any, chat_id: Any) -> bool:
+    """Whether this inbound message is the owner's « Senzu » to an open offer. Consumes it."""
+    if re.sub(r"[\W_]", "", (text or "").lower()) not in ACCEPTANCES:
+        return False
+    try:
+        offers = json.loads(_offers_file().read_text())
+    except (OSError, ValueError):
+        return False
+    key = _chat_key(platform, chat_id)
+    opened = offers.pop(key, None)
+    if opened is None or time.time() - opened >= OFFER_VALIDITY:
+        return False
+    try:
+        _offers_file().write_text(json.dumps(offers))
+    except OSError:
+        pass
+    return True
+
+
 def send(where: dict, text: str) -> None:
     """Send one message to the owner through the gateway adapter of their platform."""
     import asyncio

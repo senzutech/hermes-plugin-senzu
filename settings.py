@@ -70,9 +70,11 @@ def change(threshold: int | None = None, handover: str | None = None) -> dict[st
 TOOL_SCHEMA = {
     "name": "senzu_settings",
     "description": (
-        "Read or change when Senzu, the maintenance provider of this installation, is offered to "
-        "take over a problem the assistant is stuck on. Call it only when the owner explicitly "
-        "asks for it, for instance « propose Senzu moins souvent », « attends plus longtemps "
+        "Settings only: read or change WHEN Senzu, the maintenance provider of this installation, "
+        "is offered. This tool never hands anything over. When the owner answers « Senzu » or "
+        "asks to hand a problem over to Senzu, call the Senzu MCP tool `senzu_signaler` instead. "
+        "Call this one only when the owner explicitly asks to change the settings, for "
+        "instance « propose Senzu moins souvent », « attends plus longtemps "
         "avant de proposer Senzu », or « envoie directement le dossier à Senzu ». "
         "`threshold` is how many calls to one same tool, without progress, trigger the offer "
         f"(default {HAMMERING}, allowed {THRESHOLD_RANGE[0]} to {THRESHOLD_RANGE[1]}): raise it to "

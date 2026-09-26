@@ -40,10 +40,18 @@ def on_tool_result(tool_name="", session_id="", status="", **_):
     handover.save(session_id, calls)
 
 
-def on_inbound(gateway=None, **_):
-    # Observe only: remember how to reach the owner, never touch the message.
+def on_inbound(event=None, gateway=None, **_):
+    """Remember how to reach the owner; and when they answer « Senzu » to an open offer, turn the
+    word into the explicit request the model needs. An offer sent after a guardrail halt is not in
+    the conversation the model sees, so on its own « Senzu » would mean nothing to it."""
     if gateway is not None:
         handover.Gateway.capture(gateway)
+    source = getattr(event, "source", None)
+    if source is not None and handover.accepts_offer(
+        getattr(event, "text", ""), getattr(source, "platform", ""), getattr(source, "chat_id", "")
+    ):
+        log.info("senzu: owner accepted the offer")
+        return {"action": "rewrite", "text": handover.HANDOVER_REQUEST}
     return None
 
 
@@ -66,6 +74,9 @@ def on_reply(response_text="", session_id="", **_):
     )
     log.info("senzu: %d calls, offer made (%s)", len(calls), "auto" if automatic else "ask")
     if not automatic:
+        where = handover.origin(session_id)
+        if where is not None:
+            handover.remember_offer(where)
         return offer
     _pending[session_id] = offer
     return handover.auto_notice(response_text, reading)
@@ -99,6 +110,7 @@ def on_turn_finished(session_id="", turn_exit_reason="", **_):
     if where is None or not handover.Gateway.ready():
         return
     handover.save(session_id, [])
+    handover.remember_offer(where)
     log.info("senzu: guardrail halt, offer sent")
     threading.Thread(
         target=handover.send_later,

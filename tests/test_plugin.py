@@ -199,3 +199,31 @@ class _Inline:
             handover.send(*self.args[:2])
         else:
             self.target(*self.args)
+
+
+def _event(text, platform="telegram", chat_id="7"):
+    source = type("Source", (), {"platform": platform, "chat_id": chat_id})()
+    return type("Event", (), {"text": text, "source": source})()
+
+
+def test_the_owners_senzu_after_a_halt_becomes_an_explicit_request(tmp_path, monkeypatch):
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    adapter, loop = _gateway(tmp_path)
+    monkeypatch.setattr(threading, "Thread", _Inline)
+    hammer("h", times=5)
+    senzu.on_turn_finished(session_id="h", turn_exit_reason="guardrail_halt")
+    rewritten = senzu.on_inbound(event=_event("Senzu !"))
+    assert rewritten["action"] == "rewrite" and "senzu_signaler" in rewritten["text"]
+    assert senzu.on_inbound(event=_event("Senzu")) is None, "an offer is accepted once"
+    loop.call_soon_threadsafe(loop.stop)
+
+
+def test_senzu_without_an_offer_is_left_alone(tmp_path, monkeypatch):
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    assert senzu.on_inbound(event=_event("Senzu")) is None
+
+
+def test_an_ordinary_message_after_an_offer_is_left_alone(tmp_path, monkeypatch):
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    handover.remember_offer({"platform": "telegram", "chat_id": "7"})
+    assert senzu.on_inbound(event=_event("et Senzu c'est quoi ?")) is None
