@@ -1,0 +1,77 @@
+"""``hermes senzu setup`` and ``hermes senzu doctor``.
+
+A Hermes plugin cannot declare an MCP server, so the plugin installs it itself, with the same
+configuration calls ``hermes mcp add`` and ``hermes config set`` make. One command after
+``hermes plugins install``, and nothing to edit by hand.
+"""
+
+from __future__ import annotations
+
+import argparse
+from typing import Any
+
+from .handover import DESK, env
+
+DEFAULT_URL = "https://senzu.cr.edouard.cl/mcp"
+KEY = "SENZU_API_KEY"
+
+
+def setup_parser(parser: argparse.ArgumentParser) -> None:
+    commands = parser.add_subparsers(dest="senzu_command")
+    setup = commands.add_parser("setup", help="Connect this installation to the Senzu desk")
+    setup.add_argument("--key", help=f"API key given by Senzu (default: {KEY} from .env)")
+    setup.add_argument("--url", default=DEFAULT_URL, help="MCP endpoint of the Senzu desk")
+    commands.add_parser("doctor", help="Check that everything Senzu needs is in place")
+
+
+def handle(args: argparse.Namespace) -> int:
+    if getattr(args, "senzu_command", None) == "setup":
+        return _setup(args)
+    if getattr(args, "senzu_command", None) == "doctor":
+        return _doctor()
+    print("Usage : hermes senzu setup | hermes senzu doctor")
+    return 1
+
+
+def _setup(args: argparse.Namespace) -> int:
+    from hermes_cli.config import save_env_value, set_config_value
+
+    if args.key:
+        save_env_value(KEY, args.key.strip())
+    if not env(KEY):
+        print(f"✗ Clé absente : relancez avec --key, ou ajoutez {KEY} au .env d'Hermes.")
+        return 1
+    # The key stays in .env; config.yaml only names it, the way `hermes mcp add` does.
+    for key, value in (
+        (f"mcp_servers.{DESK}.url", args.url),
+        (f"mcp_servers.{DESK}.headers.Authorization", f"Bearer ${{{KEY}}}"),
+        (f"mcp_servers.{DESK}.connect_timeout", "30"),
+        (f"mcp_servers.{DESK}.enabled", "true"),
+        # Without it the plugin cannot file the dossier and falls back to the text offer.
+        ("plugins.entries.senzu.mcp_allowlist", f'["{DESK}"]'),
+    ):
+        set_config_value(key, value, force=True)
+    print("✓ Bureau Senzu branché. Redémarrez le gateway : hermes gateway restart")
+    return 0
+
+
+def _doctor() -> int:
+    from hermes_cli.config import load_config
+
+    config: Any = load_config() or {}
+    server = (config.get("mcp_servers") or {}).get(DESK) or {}
+    plugins = config.get("plugins") or {}
+    entry = (plugins.get("entries") or {}).get("senzu") or {}
+    checks = (
+        ("Plugin activé", "senzu" in (plugins.get("enabled") or [])),
+        (f"Clé {KEY}", bool(env(KEY))),
+        ("Serveur MCP senzu déclaré", bool(server.get("url"))),
+        ("Accès du plugin au MCP", DESK in (entry.get("mcp_allowlist") or [])),
+        ("Carte Telegram (TELEGRAM_BOT_TOKEN)", bool(env("TELEGRAM_BOT_TOKEN"))),
+    )
+    for label, ok in checks:
+        print(f"{'✓' if ok else '✗'} {label}")
+    essential = all(ok for _, ok in checks[:4])
+    if not essential:
+        print("\nLancez : hermes senzu setup")
+    return 0 if essential else 1

@@ -1,0 +1,14 @@
+# Draft entry for NousResearch/hermes-agent plugin-catalog/, to submit as a PR once v0.1.0 is
+# tagged. `sha` must be the exact commit of the release tag.
+name: senzu
+title: Senzu
+repo: https://github.com/senzutech/hermes-plugin-senzu
+sha: "<40-hex commit of v0.1.0>"
+version: "0.1.0"
+tier: community
+category: automation
+maintainer: senzutech
+docs_url: https://github.com/senzutech/hermes-plugin-senzu#readme
+capabilities:
+  hooks: [pre_tool_call, post_tool_call, transform_llm_output, post_llm_call]
+  env: [SENZU_API_KEY]
