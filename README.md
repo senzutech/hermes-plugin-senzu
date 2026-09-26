@@ -57,8 +57,29 @@ hermes senzu doctor
 ✓ Clé SENZU_API_KEY
 ✓ Serveur MCP senzu déclaré
 ✓ Accès du plugin au MCP
-• Reprise par Senzu : sur votre accord
+• Reprise par Senzu : sur votre accord, offre après 6 appels
 ```
+
+### Settings
+
+Two settings per installation, read on every reply: a change applies from the next reply,
+without restarting anything.
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `threshold` | `6` | Calls to one same tool, without progress, before Senzu is offered. From 3 to 50. Raise it to be offered help less often. |
+| `handover` | `ask` | `ask` or `auto`, see below. |
+
+Change them in any of three ways, which all write `plugins.entries.senzu` in `config.yaml`:
+
+```bash
+hermes senzu setup --threshold 10 --handover auto      # only what you pass is changed
+hermes config set plugins.entries.senzu.threshold 10
+```
+
+or simply ask your assistant (« propose Senzu moins souvent », « attends 10 tentatives avant de
+proposer Senzu », « envoie directement le dossier à Senzu »): it has a `senzu_settings` tool for
+exactly that.
 
 ### Handover mode
 
@@ -85,11 +106,12 @@ plugins:
   entries:
     senzu:
       mcp_allowlist: [senzu]   # lets the plugin file the dossier itself (auto mode)
-      handover: ask            # or auto
+      handover: ask            # or auto, only if you pass --handover
+      threshold: 6             # only if you pass --threshold
 ```
 
 Options: `--key <key>` to set the key non-interactively, `--url <endpoint>` for another desk,
-`--handover ask|auto`.
+`--threshold <n>`, `--handover ask|auto`. Running `setup` again only changes what you pass.
 
 </details>
 
@@ -123,8 +145,11 @@ To update: `hermes plugins install senzutech/hermes-plugin-senzu --force --enabl
             └─► you answer ─► senzu_signaler           through the gateway ─► you approve
 ```
 
-**"Stuck"** means one tool called at least 6 times *and* making up at least two fifths of the
-last 40 calls, or two failures among the last 8 calls with the last one failing. The thresholds
+**"Stuck"** means one tool called at least `threshold` times (6 by default) *and* making up at
+least two fifths of the last 40 calls, or two failures among the last 8 calls with the last one
+failing. It also means **Hermes' own loop guardrail halted the turn** (on a gateway, Hermes stops
+five identical calls in a row): the offer then follows Hermes' halt message, always in `ask`
+form, since a dossier written from a turn cut short would be thin. The thresholds
 were measured on real stuck sessions (the dominant tool was called 7, 9, 12 and 26 times) against
 working ones (four tools sharing the load evenly). The offer is made once per series, and never
 after the desk has been called.
@@ -133,6 +158,22 @@ after the desk has been called.
 The catalogue lives in [`guard.py`](guard.py); anything absent from it passes in silence.
 Answering `[a]lways` at the gate mutes one family of actions (`senzu:fs-mass-delete`,
 `senzu:payment`…), never all of them.
+
+## For agents
+
+If the owner asks you to change when Senzu is offered, call the `senzu_settings` tool:
+
+| Owner says | Call |
+|---|---|
+| « Propose Senzu moins souvent », « attends plus longtemps » | `senzu_settings(threshold=<higher>)`, e.g. 10 |
+| « Propose Senzu plus tôt » | `senzu_settings(threshold=<lower>)`, at least 3 |
+| « Envoie directement le dossier à Senzu » | `senzu_settings(handover="auto")` |
+| « Demande-moi avant d'envoyer quoi que ce soit » | `senzu_settings(handover="ask")` |
+| « Quels sont les réglages Senzu ? » | `senzu_settings()` |
+
+It returns the settings now in force; tell the owner what changed. No restart is needed. Without
+the tool (for instance from a shell), `hermes senzu setup --threshold <n>` does the same. Never
+change these settings on your own initiative.
 
 ## Privacy and security
 
@@ -159,7 +200,7 @@ Please report vulnerabilities privately, see [SECURITY.md](SECURITY.md).
 
 | Hermes Agent | Plugin | Notes |
 |---|---|---|
-| September 2026 builds and later | 0.1.x | needs `transform_llm_output`, `pre_gateway_dispatch`, `ctx.llm`, `ctx.call_mcp` |
+| September 2026 builds and later | 0.1.x | needs `transform_llm_output`, `pre_gateway_dispatch`, `on_session_end`, `ctx.llm`, `ctx.call_mcp` |
 
 Outside the gateway (`hermes chat`), `auto` mode falls back to asking. Plugins are not loaded
 under `hermes serve` and `hermes dashboard`

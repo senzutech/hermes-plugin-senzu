@@ -45,6 +45,8 @@ class Reading:
 
     failures: int = 0
     repeats: int = 0
+    # Calls to one same tool that count as hammering, per installation (see settings.py).
+    threshold: int = HAMMERING
     window: int = 0
     just_failed: bool = False
     already_asked: bool = False
@@ -60,19 +62,19 @@ class Reading:
         if self.already_asked:
             return False
         dominates = self.repeats * 5 >= self.window * 2
-        hammering = self.repeats >= HAMMERING and dominates
+        hammering = self.repeats >= self.threshold and dominates
         failing = self.failures >= FAILURES_TO_SPEAK and self.just_failed
         return hammering or failing
 
     @property
     def observed(self) -> str:
         """The observation, in the owner's words, so they can weigh it."""
-        if self.repeats >= HAMMERING:
+        if self.repeats >= self.threshold:
             return f"l'assistant a relancé {self.repeats} fois le même outil sans aboutir"
         return f"{self.failures} des dernières opérations ont échoué"
 
 
-def read(calls: Iterable[Call]) -> Reading:
+def read(calls: Iterable[Call], threshold: int = HAMMERING) -> Reading:
     """Read the recorded calls of a session, oldest first."""
     history = list(calls)
     recent = history[-FAILURE_WINDOW:]
@@ -82,6 +84,7 @@ def read(calls: Iterable[Call]) -> Reading:
         failures=sum(call.failed for call in recent),
         repeats=max(counts.values(), default=0),
         window=len(hammer),
+        threshold=threshold,
         just_failed=bool(history) and history[-1].failed,
         already_asked=any(needle in call.tool for call in history for needle in ALREADY_ASKED),
     )

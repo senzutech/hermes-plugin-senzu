@@ -125,22 +125,6 @@ def sweep() -> None:
         pass
 
 
-# --- The owner's choice ------------------------------------------------------------------------
-
-ASK, AUTO = "ask", "auto"
-
-
-def mode() -> str:
-    """``auto`` only when the owner chose it; anything else, or no config at all, asks."""
-    try:
-        from hermes_cli.config import load_config
-
-        entry = ((load_config() or {}).get("plugins") or {}).get("entries", {}).get("senzu") or {}
-    except Exception:
-        return ASK
-    return AUTO if entry.get("handover") == AUTO else ASK
-
-
 # --- What the owner reads ----------------------------------------------------------------------
 
 
@@ -159,6 +143,15 @@ def auto_notice(reply: str, reading: Reading) -> str:
         f"{reply.rstrip()}\n\n---\n[Senzu] Je n'avance plus : {reading.observed}. Comme "
         "convenu, je transmets le dossier à vos experts Senzu ; le lien pour valider leur "
         "intervention arrive dans un instant."
+    )
+
+
+def halt_offer() -> str:
+    """Hermes itself stopped the turn for looping: the plainest proof the assistant is stuck."""
+    return (
+        "[Senzu] Hermes vient d'arrêter cette tâche : l'assistant tournait en rond. Vos experts "
+        "Senzu peuvent prendre le relais : répondez « Senzu » et je leur prépare le dossier. Rien "
+        "ne leur est envoyé sans votre réponse."
     )
 
 
@@ -298,6 +291,15 @@ def file_with_desk(ctx: Any, dossier: dict) -> str | None:
     if not found:
         log.warning("senzu: desk answered without a link: %s", str(answer)[:300])
     return found.group(0) if found else None
+
+
+def send_later(where: dict, text: str, delay: float = 3.0) -> None:
+    """Send after Hermes' own message has gone out, so the offer reads as the follow-up."""
+    time.sleep(delay)
+    try:
+        send(where, text)
+    except Exception as error:
+        log.warning("senzu: offer not delivered: %s", error)
 
 
 def auto_handover(ctx: Any, session_id: str, history: list, fallback: str) -> None:

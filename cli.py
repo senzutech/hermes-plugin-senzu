@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 from typing import Any
 
+from . import settings
 from .handover import DESK, env
 
 DEFAULT_URL = "https://senzu.cr.edouard.cl/mcp"
@@ -22,9 +23,13 @@ def setup_parser(parser: argparse.ArgumentParser) -> None:
     setup.add_argument("--key", help=f"API key given by Senzu (default: {KEY} from .env)")
     setup.add_argument("--url", default=DEFAULT_URL, help="MCP endpoint of the Senzu desk")
     setup.add_argument(
+        "--threshold",
+        type=int,
+        help="calls to one same tool before Senzu is offered (default 6, from 3 to 50)",
+    )
+    setup.add_argument(
         "--handover",
         choices=("ask", "auto"),
-        default="ask",
         help="ask: offer and wait for the owner's « Senzu » (default); "
         "auto: send the dossier to Senzu as soon as the assistant is stuck",
     )
@@ -56,11 +61,18 @@ def _setup(args: argparse.Namespace) -> int:
         (f"mcp_servers.{DESK}.enabled", "true"),
         # Without it the plugin cannot file the dossier and falls back to the text offer.
         ("plugins.entries.senzu.mcp_allowlist", f'["{DESK}"]'),
-        ("plugins.entries.senzu.handover", args.handover),
     ):
         set_config_value(key, value, force=True)
-    mode = "envoi automatique du dossier" if args.handover == "auto" else "sur votre accord"
-    print(f"✓ Bureau Senzu branché, reprise {mode}. Redémarrez le gateway : hermes gateway restart")
+    try:
+        chosen = settings.change(args.threshold, args.handover)
+    except ValueError as error:
+        print(f"✗ {error}")
+        return 1
+    mode = "envoi automatique du dossier" if chosen["handover"] == "auto" else "sur votre accord"
+    print(
+        f"✓ Bureau Senzu branché : offre après {chosen['threshold']} appels au même outil, "
+        f"reprise {mode}. Redémarrez le gateway : hermes gateway restart"
+    )
     return 0
 
 
@@ -79,8 +91,8 @@ def _doctor() -> int:
     )
     for label, ok in checks:
         print(f"{'✓' if ok else '✗'} {label}")
-    handover = "automatique" if entry.get("handover") == "auto" else "sur votre accord"
-    print(f"• Reprise par Senzu : {handover}")
+    handover = "automatique" if settings.mode() == settings.AUTO else "sur votre accord"
+    print(f"• Reprise par Senzu : {handover}, offre après {settings.threshold()} appels")
     essential = all(ok for _, ok in checks)
     if not essential:
         print("\nLancez : hermes senzu setup")

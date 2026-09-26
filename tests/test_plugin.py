@@ -5,7 +5,7 @@ import json
 import threading
 
 import senzu
-from senzu import handover
+from senzu import handover, settings
 
 
 class FakeContext:
@@ -19,6 +19,9 @@ class FakeContext:
 
     def register_cli_command(self, name, **kwargs):
         self.commands[name] = kwargs
+
+    def register_tool(self, name, **kwargs):
+        self.commands[f"tool:{name}"] = kwargs
 
     def complete_structured(self, **_):
         dossier = {
@@ -58,13 +61,15 @@ def test_register_wires_every_hook_and_the_command(tmp_path, monkeypatch):
         "pre_gateway_dispatch",
         "transform_llm_output",
         "post_llm_call",
+        "on_session_end",
     }
     assert "senzu" in ctx.commands
+    assert "tool:senzu_settings" in ctx.commands
 
 
 def test_by_default_the_owner_is_asked_and_nothing_is_sent(tmp_path, monkeypatch):
     monkeypatch.setenv("HERMES_HOME", str(tmp_path))
-    monkeypatch.setattr(handover, "mode", lambda: handover.ASK)
+    monkeypatch.setattr(settings, "_entry", lambda: {})
     hammer("s")
     reply = senzu.on_reply(response_text="Je réessaie.", session_id="s")
     assert reply.startswith("Je réessaie.\n\n---\n[Senzu]")
@@ -75,7 +80,7 @@ def test_by_default_the_owner_is_asked_and_nothing_is_sent(tmp_path, monkeypatch
 
 def test_auto_mode_files_the_dossier_and_sends_the_link_through_the_gateway(tmp_path, monkeypatch):
     monkeypatch.setenv("HERMES_HOME", str(tmp_path))
-    monkeypatch.setattr(handover, "mode", lambda: handover.AUTO)
+    monkeypatch.setattr(settings, "_entry", lambda: {"handover": "auto"})
     (tmp_path / "sessions").mkdir()
     (tmp_path / "sessions" / "sessions.json").write_text(
         json.dumps({"k": {"session_id": "s", "origin": {"platform": "discord", "chat_id": "42"}}})
@@ -111,7 +116,7 @@ def test_auto_mode_files_the_dossier_and_sends_the_link_through_the_gateway(tmp_
 
 def test_auto_mode_without_a_gateway_falls_back_to_asking(tmp_path, monkeypatch):
     monkeypatch.setenv("HERMES_HOME", str(tmp_path))
-    monkeypatch.setattr(handover, "mode", lambda: handover.AUTO)
+    monkeypatch.setattr(settings, "_entry", lambda: {"handover": "auto"})
     monkeypatch.setattr(handover.Gateway, "runner", None)
     hammer("cli")
     reply = senzu.on_reply(response_text="Je réessaie.", session_id="cli")
@@ -137,3 +142,60 @@ def test_critical_calls_go_to_the_gate():
     assert directive["action"] == "approve"
     assert "votre prestataire de maintenance" in directive["message"]
     assert senzu.on_tool_call(tool_name="read_file", args={"path": "a"}) is None
+
+
+def _gateway(tmp_path, platform="telegram"):
+    (tmp_path / "sessions").mkdir(exist_ok=True)
+    (tmp_path / "sessions" / "sessions.json").write_text(
+        json.dumps({"k": {"session_id": "h", "origin": {"platform": platform, "chat_id": "7"}}})
+    )
+    loop = asyncio.new_event_loop()
+    threading.Thread(target=loop.run_forever, daemon=True).start()
+    adapter = FakeAdapter()
+    handover.Gateway.runner = type("Runner", (), {"adapters": {platform: adapter}})()
+    handover.Gateway.loop = loop
+    return adapter, loop
+
+
+def test_a_guardrail_halt_sends_the_offer_through_the_gateway(tmp_path, monkeypatch):
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    adapter, loop = _gateway(tmp_path)
+    monkeypatch.setattr(threading, "Thread", _Inline)
+    hammer("h", times=5)  # Hermes stops identical calls at five, below our threshold
+    assert senzu.on_reply(response_text="Arrêt.", session_id="h") is None
+    senzu.on_turn_finished(session_id="h", turn_exit_reason="guardrail_halt")
+    assert len(adapter.sent) == 1 and "Hermes vient d'arrêter cette tâche" in adapter.sent[0][1]
+    loop.call_soon_threadsafe(loop.stop)
+
+
+def test_no_second_offer_when_the_reply_already_carried_one(tmp_path, monkeypatch):
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    monkeypatch.setattr(settings, "_entry", lambda: {})
+    adapter, loop = _gateway(tmp_path)
+    monkeypatch.setattr(threading, "Thread", _Inline)
+    hammer("h", times=7)
+    assert senzu.on_reply(response_text="Je réessaie.", session_id="h")
+    senzu.on_turn_finished(session_id="h", turn_exit_reason="guardrail_halt")
+    assert adapter.sent == []
+    loop.call_soon_threadsafe(loop.stop)
+
+
+def test_an_ordinary_turn_end_sends_nothing(tmp_path, monkeypatch):
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    adapter, loop = _gateway(tmp_path)
+    senzu.on_turn_finished(session_id="h", turn_exit_reason="text_response")
+    assert adapter.sent == []
+    loop.call_soon_threadsafe(loop.stop)
+
+
+class _Inline:
+    """Runs the thread's target at once, without the delay, so the test sees the send."""
+
+    def __init__(self, target, args=(), **_):
+        self.target, self.args = target, args
+
+    def start(self):
+        if self.target is handover.send_later:
+            handover.send(*self.args[:2])
+        else:
+            self.target(*self.args)

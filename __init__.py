@@ -4,8 +4,9 @@ Two things, both decided by arithmetic and never by the model:
 
 * before a critical action (mass deletion, payment, public post…), Hermes' approval gate opens
   with the risk first, then the option of having Senzu do it;
-* when the assistant keeps hammering at a problem it cannot solve, the owner is offered to hand
-  it over to Senzu, or it is handed over directly if that is what the owner chose at setup.
+* when the assistant keeps hammering at a problem it cannot solve, or when Hermes' own loop
+  guardrail stops it, the owner is offered to hand it over to Senzu, or it is handed over
+  directly if that is what the owner chose at setup.
 
 See README.md for installation.
 """
@@ -15,7 +16,7 @@ from __future__ import annotations
 import logging
 import threading
 
-from . import cli, guard, handover, stuck
+from . import cli, guard, handover, settings, stuck
 
 log = logging.getLogger("hermes_plugins.senzu")
 
@@ -23,6 +24,8 @@ _ctx = None
 # Sessions handed over automatically this turn, waiting for post_llm_call and its history,
 # with the text offer to send instead if anything on the way fails.
 _pending: dict[str, str] = {}
+# Sessions whose reply already carried the offer this turn, so a guardrail halt does not repeat it.
+_offered: set[str] = set()
 
 
 def on_tool_call(tool_name="", args=None, **_):
@@ -48,14 +51,15 @@ def on_reply(response_text="", session_id="", **_):
     calls = handover.load(session_id)
     if not calls or not response_text:
         return None
-    reading = stuck.read(calls)
+    reading = stuck.read(calls, settings.threshold())
     if not reading.deserves_an_offer:
         return None
     # Offered once: the repetition has to build up again before the owner is asked twice.
     handover.save(session_id, [])
+    _offered.add(session_id)
     offer = handover.ask_offer(response_text, reading)
     automatic = (
-        handover.mode() == handover.AUTO
+        settings.mode() == settings.AUTO
         and _ctx is not None
         and handover.Gateway.ready()
         and handover.origin(session_id) is not None
@@ -80,6 +84,30 @@ def on_turn_end(session_id="", conversation_history=None, **_):
     ).start()
 
 
+def on_turn_finished(session_id="", turn_exit_reason="", **_):
+    """Hermes' loop guardrail halted the turn: it has judged the assistant stuck, whatever our
+    own count says (it stops five identical calls, before our threshold). The offer is the ask
+    one whatever the setting, since a dossier written from a turn cut short would be thin."""
+    already_offered = session_id in _offered
+    _offered.discard(session_id)
+    if turn_exit_reason != "guardrail_halt" or already_offered:
+        return
+    calls = handover.load(session_id)
+    if stuck.read(calls).already_asked:
+        return
+    where = handover.origin(session_id)
+    if where is None or not handover.Gateway.ready():
+        return
+    handover.save(session_id, [])
+    log.info("senzu: guardrail halt, offer sent")
+    threading.Thread(
+        target=handover.send_later,
+        args=(where, handover.halt_offer()),
+        name="senzu-halt-offer",
+        daemon=True,
+    ).start()
+
+
 def register(ctx):
     global _ctx
     _ctx = ctx
@@ -89,6 +117,14 @@ def register(ctx):
     ctx.register_hook("pre_gateway_dispatch", on_inbound)
     ctx.register_hook("transform_llm_output", on_reply)
     ctx.register_hook("post_llm_call", on_turn_end)
+    ctx.register_hook("on_session_end", on_turn_finished)
+    ctx.register_tool(
+        name="senzu_settings",
+        toolset="senzu",
+        schema=settings.TOOL_SCHEMA,
+        handler=settings.tool_handler,
+        description="Change when Senzu is offered, when the owner asks",
+    )
     ctx.register_cli_command(
         name="senzu",
         help="Connect to the Senzu desk and check the installation",
