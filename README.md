@@ -57,6 +57,7 @@ hermes senzu doctor
 ✓ Clé SENZU_API_KEY
 ✓ Serveur MCP senzu déclaré
 ✓ Accès du plugin au MCP
+✓ Réponse par réaction 👍
 • Reprise par Senzu : sur votre accord, offre après 6 appels
 ```
 
@@ -83,7 +84,7 @@ The defaults suit most installations; there is nothing to configure to get start
 
 | `hermes senzu setup --handover …` | When the assistant is stuck |
 |---|---|
-| `ask` (default) | The offer follows the reply: a **🛟 Confier à Senzu** button on Telegram, « répondez Senzu » elsewhere. Nothing is sent to Senzu until you tap or answer; the plugin turns that into an explicit request, and the assistant files the handover itself. |
+| `ask` (default) | The offer follows the reply. Answer with a 👍 (or ✅, ❤️) on it on Telegram, or type « Senzu » anywhere. Nothing is sent to Senzu until you do; the plugin turns your answer into an explicit request, and the assistant files the handover itself. |
 | `auto` | You decided once that Senzu may step in. The plugin writes the dossier with your assistant's model, files it, and sends you the link to approve the work. Nothing is done before you click. |
 
 <details>
@@ -104,6 +105,7 @@ plugins:
   entries:
     senzu:
       mcp_allowlist: [senzu]   # lets the plugin file the dossier itself (auto mode)
+      allow_gateway_injection: true   # lets a 👍 on the offer resume the conversation
       handover: ask            # or auto, only if you pass --handover
       threshold: 6             # only if you pass --threshold
 ```
@@ -190,7 +192,7 @@ Please report vulnerabilities privately, see [SECURITY.md](SECURITY.md).
 
 | Hermes Agent | Plugin | Notes |
 |---|---|---|
-| September 2026 builds and later | 0.1.x | needs `transform_llm_output`, `pre_gateway_dispatch`, `on_session_end`, `ctx.llm`, `ctx.call_mcp` |
+| September 2026 builds and later | 0.1.x | needs `transform_llm_output`, `pre_gateway_dispatch`, `on_session_end`, `gateway_platform_event`, `ctx.inject_message`, `ctx.llm`, `ctx.call_mcp` |
 
 Outside the gateway (`hermes chat`), `auto` mode falls back to asking. Plugins are not loaded
 under `hermes serve` and `hermes dashboard`

@@ -77,14 +77,11 @@ def on_reply(response_text="", session_id="", **_):
         where = handover.origin(session_id)
         if where is None or not handover.Gateway.ready():
             return offer  # no gateway (hermes chat): the offer rides on the reply
-        # On the gateway the offer follows the reply as its own message, with a button where the
-        # channel has one; on_inbound understands the tap, or the typed « Senzu ».
-        handover.remember_offer(where)
-        button = handover.has_button(where)
+        # On the gateway the offer follows the reply as its own message. The owner answers with a
+        # reaction on it (Telegram) or by typing « Senzu »; on_reaction and on_inbound listen.
         threading.Thread(
-            target=handover.send_later,
-            args=(where, handover.offer_message(reading, button=button)),
-            kwargs={"button": button},
+            target=handover.send_offer_later,
+            args=(where, handover.offer_message(reading, react=handover.reacts(where))),
             name="senzu-offer",
             daemon=True,
         ).start()
@@ -121,16 +118,27 @@ def on_turn_finished(session_id="", turn_exit_reason="", **_):
     if where is None or not handover.Gateway.ready():
         return
     handover.save(session_id, [])
-    handover.remember_offer(where)
     log.info("senzu: guardrail halt, offer sent")
-    button = handover.has_button(where)
     threading.Thread(
-        target=handover.send_later,
-        args=(where, handover.halt_offer(button=button)),
-        kwargs={"button": button},
+        target=handover.send_offer_later,
+        args=(where, handover.halt_offer(react=handover.reacts(where))),
         name="senzu-halt-offer",
         daemon=True,
     ).start()
+
+
+def on_reaction(platform="", event_type="", payload=None, **_):
+    """A yes-reaction (👍 ✅ ❤️…) on the offer message: resume the conversation with the same
+    explicit request a typed « Senzu » becomes."""
+    if event_type != "reaction" or not isinstance(payload, dict) or _ctx is None:
+        return
+    session_key = handover.accepts_reaction(
+        platform, payload.get("chat_id"), payload.get("message_id"), payload.get("emojis") or []
+    )
+    if session_key is None:
+        return
+    queued = _ctx.inject_message(handover.HANDOVER_REQUEST, role="user", session_key=session_key)
+    log.info("senzu: owner accepted the offer with a reaction (queued=%s)", queued)
 
 
 def register(ctx):
@@ -143,6 +151,7 @@ def register(ctx):
     ctx.register_hook("transform_llm_output", on_reply)
     ctx.register_hook("post_llm_call", on_turn_end)
     ctx.register_hook("on_session_end", on_turn_finished)
+    ctx.register_hook("gateway_platform_event", on_reaction)
     ctx.register_cli_command(
         name="senzu",
         help="Connect to the Senzu desk and check the installation",

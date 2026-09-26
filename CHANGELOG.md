@@ -17,8 +17,9 @@ All notable changes to this plugin are documented here. The format follows
   approval link).
 - Offer after Hermes' own loop guardrail halts a turn, sent through the gateway after Hermes'
   halt message.
-- On the gateway the offer follows the reply as its own message; on Telegram it carries a
-  one-tap **🛟 Confier à Senzu** keyboard button, whose tap arrives as an ordinary message.
+- On the gateway the offer follows the reply as its own message. On Telegram the owner accepts
+  it with a 👍 (or ✅, ❤️…) on that message, which resumes the conversation through
+  `ctx.inject_message`; typing « Senzu » works everywhere.
 - The owner's one-word « Senzu » to an open offer (24 h) is rewritten into an explicit handover
   request before it reaches the model, which otherwise may not know an offer was made.
 - Per-installation settings, `threshold` (default 6) and `handover`, read on every reply;

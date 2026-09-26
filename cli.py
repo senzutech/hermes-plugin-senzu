@@ -61,6 +61,8 @@ def _setup(args: argparse.Namespace) -> int:
         (f"mcp_servers.{DESK}.enabled", "true"),
         # Without it the plugin cannot file the dossier and falls back to the text offer.
         ("plugins.entries.senzu.mcp_allowlist", f'["{DESK}"]'),
+        # Lets a 👍 on the offer resume the conversation, as if the owner had typed « Senzu ».
+        ("plugins.entries.senzu.allow_gateway_injection", "true"),
     ):
         set_config_value(key, value, force=True)
     try:
@@ -88,6 +90,7 @@ def _doctor() -> int:
         (f"Clé {KEY}", bool(env(KEY))),
         ("Serveur MCP senzu déclaré", bool(server.get("url"))),
         ("Accès du plugin au MCP", DESK in (entry.get("mcp_allowlist") or [])),
+        ("Réponse par réaction 👍", entry.get("allow_gateway_injection") is True),
     )
     for label, ok in checks:
         print(f"{'✓' if ok else '✗'} {label}")

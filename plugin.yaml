@@ -12,6 +12,7 @@ provides_hooks:
   - transform_llm_output
   - post_llm_call
   - on_session_end
+  - gateway_platform_event
 requires_env:
   - name: SENZU_API_KEY
     description: "Clé d'installation fournie par Senzu"

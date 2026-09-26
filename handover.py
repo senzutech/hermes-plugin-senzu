@@ -128,23 +128,31 @@ def sweep() -> None:
 # --- What the owner reads ----------------------------------------------------------------------
 
 
-# The button's label. Pressing a keyboard button sends its label as the owner's message, which
-# on_inbound then recognises: no callback to wire, nothing Hermes would have to forward.
-BUTTON = "🛟 Confier à Senzu"
+# Reactions that mean yes, on the offer message itself. Telegram reports them to plugins through
+# Hermes' gateway_platform_event hook; nothing to tap, nothing Hermes would have to forward.
+YES_REACTIONS = {"👍", "✅", "❤", "❤️", "👌", "🙏", "💯", "🔥", "🤝"}
 
 
-def offer_message(reading: Reading, *, button: bool) -> str:
-    """The offer on its own, sent after the reply. With a button, the owner just taps it."""
-    how = f"touchez « {BUTTON} »" if button else "répondez « Senzu »"
+def reacts(where: dict) -> bool:
+    """Telegram reports reactions to plugins; elsewhere the owner types the word."""
+    return where.get("platform") == "telegram"
+
+
+def _how(react: bool) -> str:
+    return "réagissez 👍 à ce message (ou répondez « Senzu »)" if react else "répondez « Senzu »"
+
+
+def offer_message(reading: Reading, *, react: bool) -> str:
+    """The offer on its own, sent after the reply."""
     return (
         f"🛟 Je n'avance plus : {reading.observed}. Vos experts Senzu peuvent prendre le relais : "
-        f"{how} et je leur prépare le dossier. Rien ne leur est envoyé sans votre accord."
+        f"{_how(react)} et je leur prépare le dossier. Rien ne leur est envoyé sans votre accord."
     )
 
 
 def ask_offer(reply: str, reading: Reading) -> str:
     """The reply, then the offer, for when there is no gateway to send a separate message."""
-    return f"{reply.rstrip()}\n\n---\n{offer_message(reading, button=False)}"
+    return f"{reply.rstrip()}\n\n---\n{offer_message(reading, react=False)}"
 
 
 def auto_notice(reply: str, reading: Reading) -> str:
@@ -156,19 +164,13 @@ def auto_notice(reply: str, reading: Reading) -> str:
     )
 
 
-def halt_offer(*, button: bool) -> str:
+def halt_offer(*, react: bool) -> str:
     """Hermes itself stopped the turn for looping: the plainest proof the assistant is stuck."""
-    how = f"touchez « {BUTTON} »" if button else "répondez « Senzu »"
     return (
         "🛟 Hermes vient d'arrêter cette tâche : l'assistant tournait en rond. Vos experts Senzu "
-        f"peuvent prendre le relais : {how} et je leur prépare le dossier. Rien ne leur est "
-        "envoyé sans votre accord."
+        f"peuvent prendre le relais : {_how(react)} et je leur prépare le dossier. Rien ne leur "
+        "est envoyé sans votre accord."
     )
-
-
-def has_button(where: dict) -> bool:
-    """Only Telegram gets the button, for now; every other channel gets the word to type."""
-    return where.get("platform") == "telegram"
 
 
 def link_message(dossier: dict, link: str) -> str:
@@ -218,10 +220,11 @@ def origin(session_id: str) -> dict | None:
         sessions = json.loads((hermes_home() / "sessions" / "sessions.json").read_text())
     except (OSError, ValueError):
         return None
-    for entry in sessions.values():
+    for key, entry in sessions.items():
         if isinstance(entry, dict) and entry.get("session_id") == session_id:
-            found = entry.get("origin") or {}
+            found = dict(entry.get("origin") or {})
             if found.get("platform") and found.get("chat_id"):
+                found["session_key"] = entry.get("session_key") or key
                 return found
     return None
 
@@ -230,7 +233,7 @@ def origin(session_id: str) -> dict | None:
 
 # How long an offer stays open for a one-word « Senzu ».
 OFFER_VALIDITY = 24 * 3600
-ACCEPTANCES = {"senzu", "ouisenzu", "oksenzu", "gosenzu", "vasysenzu", "confieràsenzu"}
+ACCEPTANCES = {"senzu", "ouisenzu", "oksenzu", "gosenzu", "vasysenzu"}
 HANDOVER_REQUEST = (
     "Oui, je veux que Senzu prenne le relais. Appelle l'outil senzu_signaler (serveur MCP senzu) "
     "avec un résumé de ce sur quoi tu bloques : l'objectif, le blocage, ce qui a déjà été essayé "
@@ -246,15 +249,20 @@ def _chat_key(platform: Any, chat_id: Any) -> str:
     return f"{getattr(platform, 'value', platform)}:{chat_id}"
 
 
-def remember_offer(where: dict) -> None:
-    """Note that this chat was just offered Senzu, so a one-word answer can be understood."""
+def _load_offers() -> dict:
     try:
         offers = json.loads(_offers_file().read_text())
     except (OSError, ValueError):
-        offers = {}
+        return {}
     now = time.time()
-    offers = {k: v for k, v in offers.items() if now - v < OFFER_VALIDITY}
-    offers[_chat_key(where["platform"], where["chat_id"])] = now
+    return {
+        key: offer
+        for key, offer in offers.items()
+        if isinstance(offer, dict) and now - offer.get("at", 0) < OFFER_VALIDITY
+    }
+
+
+def _save_offers(offers: dict) -> None:
     try:
         _store().mkdir(parents=True, exist_ok=True)
         _offers_file().write_text(json.dumps(offers))
@@ -262,49 +270,46 @@ def remember_offer(where: dict) -> None:
         log.warning("senzu: offer not remembered: %s", error)
 
 
+def remember_offer(where: dict, message_id: Any = None) -> None:
+    """Note that this chat was just offered Senzu, and on which message, so that a one-word
+    answer or a reaction on that message can be understood."""
+    offers = _load_offers()
+    offers[_chat_key(where["platform"], where["chat_id"])] = {
+        "at": time.time(),
+        "message_id": None if message_id is None else str(message_id),
+        "session_key": where.get("session_key"),
+    }
+    _save_offers(offers)
+
+
 def accepts_offer(text: str, platform: Any, chat_id: Any) -> bool:
     """Whether this inbound message is the owner's « Senzu » to an open offer. Consumes it."""
     if re.sub(r"[\W_]", "", (text or "").lower()) not in ACCEPTANCES:
         return False
-    try:
-        offers = json.loads(_offers_file().read_text())
-    except (OSError, ValueError):
+    offers = _load_offers()
+    if offers.pop(_chat_key(platform, chat_id), None) is None:
         return False
-    key = _chat_key(platform, chat_id)
-    opened = offers.pop(key, None)
-    if opened is None or time.time() - opened >= OFFER_VALIDITY:
-        return False
-    try:
-        _offers_file().write_text(json.dumps(offers))
-    except OSError:
-        pass
+    _save_offers(offers)
     return True
 
 
-def _with_button(adapter: Any, where: dict, text: str):
-    """On Telegram, the same message with a one-tap keyboard button, through the bot the gateway
-    already runs. None when that is not possible, and the plain message goes instead."""
-    bot = getattr(adapter, "_bot", None)
-    if where.get("platform") != "telegram" or bot is None:
+def accepts_reaction(platform: Any, chat_id: Any, message_id: Any, emojis: list) -> str | None:
+    """The session to resume when a yes-reaction lands on the open offer message. Consumes it."""
+    if not YES_REACTIONS.intersection(emojis or []):
         return None
-    try:
-        from telegram import KeyboardButton, ReplyKeyboardMarkup
-    except ImportError:
+    offers = _load_offers()
+    key = _chat_key(platform, chat_id)
+    offer = offers.get(key)
+    if offer is None or offer.get("message_id") not in (None, str(message_id)):
         return None
-    keyboard = ReplyKeyboardMarkup(
-        [[KeyboardButton(BUTTON)]], one_time_keyboard=True, resize_keyboard=True
-    )
-    thread = where.get("thread_id")
-    return bot.send_message(
-        chat_id=where["chat_id"],
-        text=text,
-        reply_markup=keyboard,
-        message_thread_id=int(thread) if thread not in (None, "") else None,
-    )
+    offers.pop(key)
+    _save_offers(offers)
+    return offer.get("session_key")
 
 
-def send(where: dict, text: str, *, button: bool = False) -> None:
-    """Send one message to the owner through the gateway adapter of their platform."""
+def send(where: dict, text: str) -> Any:
+    """Send one message to the owner through the gateway adapter of their platform, and return
+    its message id when the platform gives one."""
     import asyncio
 
     # Keys are Hermes' Platform enum; match on its value rather than importing gateway internals.
@@ -318,12 +323,11 @@ def send(where: dict, text: str, *, button: bool = False) -> None:
     )
     if adapter is None:
         raise RuntimeError(f"no adapter for {where['platform']}")
-    coroutine = _with_button(adapter, where, text) if button else None
-    if coroutine is None:
-        thread = where.get("thread_id")
-        metadata = {"thread_id": thread} if thread is not None else None
-        coroutine = adapter.send(str(where["chat_id"]), text, metadata=metadata)
-    asyncio.run_coroutine_threadsafe(coroutine, Gateway.loop).result(timeout=30)
+    thread = where.get("thread_id")
+    metadata = {"thread_id": thread} if thread is not None else None
+    coroutine = adapter.send(str(where["chat_id"]), text, metadata=metadata)
+    result = asyncio.run_coroutine_threadsafe(coroutine, Gateway.loop).result(timeout=30)
+    return getattr(result, "message_id", None)
 
 
 # --- The dossier -------------------------------------------------------------------------------
@@ -386,11 +390,12 @@ def file_with_desk(ctx: Any, dossier: dict) -> str | None:
     return found.group(0) if found else None
 
 
-def send_later(where: dict, text: str, delay: float = 3.0, *, button: bool = False) -> None:
-    """Send after Hermes' own message has gone out, so the offer reads as the follow-up."""
+def send_offer_later(where: dict, text: str, delay: float = 3.0) -> None:
+    """Send the offer after Hermes' own message has gone out, so it reads as the follow-up, and
+    remember which message it is, for the owner's reaction."""
     time.sleep(delay)
     try:
-        send(where, text, button=button)
+        remember_offer(where, send(where, text))
     except Exception as error:
         log.warning("senzu: offer not delivered: %s", error)
 

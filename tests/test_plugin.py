@@ -2,9 +2,7 @@
 
 import asyncio
 import json
-import sys
 import threading
-import types
 
 import pytest
 import senzu
@@ -36,6 +34,10 @@ class FakeContext:
         }
         return type("Result", (), {"parsed": dossier, "text": ""})()
 
+    def inject_message(self, content, role="user", session_key=None):
+        self.injected = (content, role, session_key)
+        return True
+
     def call_mcp(self, server, tool, arguments, timeout=30):
         self.filed.append((server, tool, arguments))
         return {"ok": True, "result": f"Signalement reçu. Page de validation : {self.link}"}
@@ -47,6 +49,7 @@ class FakeAdapter:
 
     async def send(self, chat_id, content, metadata=None):
         self.sent.append((chat_id, content))
+        return type("SendResult", (), {"message_id": f"m{len(self.sent)}"})()
 
 
 @pytest.fixture(autouse=True)
@@ -72,6 +75,7 @@ def test_register_wires_every_hook_and_the_command(tmp_path, monkeypatch):
         "transform_llm_output",
         "post_llm_call",
         "on_session_end",
+        "gateway_platform_event",
     }
     assert "senzu" in ctx.commands
 
@@ -204,8 +208,9 @@ class _Inline:
         self.target, self.args, self.kwargs = target, args, kwargs or {}
 
     def start(self):
-        if self.target is handover.send_later:
-            handover.send(*self.args[:2], **self.kwargs)
+        if self.target is handover.send_offer_later:
+            where, text = self.args[:2]
+            handover.remember_offer(where, handover.send(where, text))
         else:
             self.target(*self.args, **self.kwargs)
 
@@ -238,36 +243,45 @@ def test_an_ordinary_message_after_an_offer_is_left_alone(tmp_path, monkeypatch)
     assert senzu.on_inbound(event=_event("et Senzu c'est quoi ?")) is None
 
 
-class FakeBot:
-    def __init__(self):
-        self.sent = []
-
-    async def send_message(self, **kwargs):
-        self.sent.append(kwargs)
-
-
-def _fake_telegram(monkeypatch):
-    module = types.ModuleType("telegram")
-    module.KeyboardButton = lambda text: {"text": text}
-    module.ReplyKeyboardMarkup = lambda rows, **kw: {"keyboard": rows, **kw}
-    monkeypatch.setitem(sys.modules, "telegram", module)
-
-
-def test_on_telegram_the_offer_follows_the_reply_with_a_button(tmp_path, monkeypatch):
+def test_on_telegram_a_thumbs_up_on_the_offer_resumes_the_conversation(tmp_path, monkeypatch):
     monkeypatch.setenv("HERMES_HOME", str(tmp_path))
     monkeypatch.setattr(settings, "_entry", lambda: {})
-    _fake_telegram(monkeypatch)
     adapter, loop = _gateway(tmp_path)
-    adapter._bot = FakeBot()
     monkeypatch.setattr(threading, "Thread", _Inline)
+    ctx = FakeContext()
+    senzu.register(ctx)
     hammer("h", times=7)
     assert senzu.on_reply(response_text="Je réessaie.", session_id="h") is None, "reply untouched"
-    (sent,) = adapter._bot.sent
-    assert "touchez « 🛟 Confier à Senzu »" in sent["text"]
-    assert sent["reply_markup"]["keyboard"] == [[{"text": "🛟 Confier à Senzu"}]]
-    tapped = senzu.on_inbound(event=_event("🛟 Confier à Senzu"))
-    assert tapped["action"] == "rewrite" and "senzu_signaler" in tapped["text"]
+    (_chat, text) = adapter.sent[0]
+    assert "réagissez 👍 à ce message" in text
+
+    reaction = {"chat_id": 7, "message_id": "m1", "emojis": ["👍"]}
+    senzu.on_reaction(platform="telegram", event_type="reaction", payload=reaction)
+    content, role, session_key = ctx.injected
+    assert "senzu_signaler" in content and role == "user" and session_key == "k"
+    ctx.injected = None
+    senzu.on_reaction(platform="telegram", event_type="reaction", payload=reaction)
+    assert ctx.injected is None, "an offer is accepted once"
     loop.call_soon_threadsafe(loop.stop)
+
+
+def test_a_reaction_elsewhere_or_of_another_kind_does_nothing(tmp_path, monkeypatch):
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    ctx = FakeContext()
+    ctx.injected = None
+    senzu.register(ctx)
+    handover.remember_offer({"platform": "telegram", "chat_id": "7", "session_key": "k"}, "m1")
+    senzu.on_reaction(
+        platform="telegram",
+        event_type="reaction",
+        payload={"chat_id": 7, "message_id": "m9", "emojis": ["👍"]},
+    )
+    senzu.on_reaction(
+        platform="telegram",
+        event_type="reaction",
+        payload={"chat_id": 7, "message_id": "m1", "emojis": ["😂"]},
+    )
+    assert ctx.injected is None
 
 
 def test_elsewhere_the_offer_follows_as_text_to_answer(tmp_path, monkeypatch):
@@ -278,4 +292,5 @@ def test_elsewhere_the_offer_follows_as_text_to_answer(tmp_path, monkeypatch):
     hammer("h", times=7)
     assert senzu.on_reply(response_text="Je réessaie.", session_id="h") is None
     assert "répondez « Senzu »" in adapter.sent[0][1]
+    assert "réagissez" not in adapter.sent[0][1]
     loop.call_soon_threadsafe(loop.stop)
