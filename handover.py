@@ -408,6 +408,10 @@ def auto_handover(ctx: Any, session_id: str, history: list, fallback: str) -> No
     try:
         dossier = write_dossier(ctx, history)
         link = file_with_desk(ctx, dossier) if dossier else None
+        if link:
+            from . import news
+
+            news.activate(where)
         if dossier and link:
             send(where, link_message(dossier, link))
         else:

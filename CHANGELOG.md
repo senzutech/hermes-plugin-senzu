@@ -22,6 +22,8 @@ All notable changes to this plugin are documented here. The format follows
   `ctx.inject_message`; typing « Senzu » works everywhere.
 - The owner's one-word « Senzu » to an open offer (24 h) is rewritten into an explicit handover
   request before it reaches the model, which otherwise may not know an offer was made.
+- News of open handovers (payment received, validation, Senzu's messages, refunds) relayed to
+  the owner's chat, by asking the desk at the pace it sets, only while a handover is open.
 - Per-installation settings, `threshold` (default 6) and `handover`, read on every reply;
   changed with `hermes senzu setup` or `hermes config set`.
 - Critical-action gate on Hermes' native approval prompt, with per-family `rule_key`s.

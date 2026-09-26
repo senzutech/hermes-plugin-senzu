@@ -32,6 +32,7 @@ taken back, with the option of having Senzu do them for you.
 | 🛟 **Handover when stuck** | When one tool dominates the recent calls without progress, you are offered to hand over, or it is handed over directly if you chose so. |
 | 🧾 **A dossier, not a transcript** | Senzu receives a summary: objective, blocker, what was tried, services involved. Never the conversation, never your files. |
 | 🚦 **Critical-action gate** | Mass deletion, payments, public posts, invoices… open Hermes' native approval prompt: the risk first, then the choice to do it now or have Senzu do it. |
+| 🔔 **Kept informed** | While a handover is open, the plugin asks Senzu for news and tells you in your usual chat: payment received, work done, Senzu's messages. No public address or open port needed. |
 | 📡 **Every channel** | Everything goes through the Hermes gateway: Telegram, WhatsApp, Discord, Slack, email, CLI. |
 | 🔒 **No model judgement** | Every decision is arithmetic on tool calls. The model is never asked whether it is stuck or whether an action is dangerous. |
 
@@ -153,6 +154,11 @@ form, since a dossier written from a turn cut short would be thin. The threshold
 were measured on real stuck sessions (the dominant tool was called 7, 9, 12 and 26 times) against
 working ones (four tools sharing the load evenly). The offer is made once per series, and never
 after the desk has been called.
+
+**News** of a handover reach you without any open port: after a handover is filed, the plugin
+asks the Senzu desk for news (one call per installation, however many handovers), at the pace
+the desk sets: two minutes after something happened, up to half an hour when it goes quiet, and
+not at all once nothing is open. What changed is sent to the chat the handover came from.
 
 **Critical actions** are rated on three axes (reversibility, who is affected, what is at stake).
 The catalogue lives in [`guard.py`](guard.py); anything absent from it passes in silence.

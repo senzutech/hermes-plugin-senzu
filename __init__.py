@@ -16,7 +16,7 @@ from __future__ import annotations
 import logging
 import threading
 
-from . import cli, guard, handover, settings, stuck
+from . import cli, guard, handover, news, settings, stuck
 
 log = logging.getLogger("hermes_plugins.senzu")
 
@@ -38,6 +38,9 @@ def on_tool_result(tool_name="", session_id="", status="", **_):
     calls = handover.load(session_id)
     calls.append(stuck.call_from_hook(tool_name, status))
     handover.save(session_id, calls)
+    # A handover filed: from now on the owner hears, in this chat, when Senzu moves on it.
+    if "senzu_signaler" in (tool_name or "") and status not in ("error", "blocked"):
+        news.activate(handover.origin(session_id))
 
 
 def on_inbound(event=None, gateway=None, **_):
@@ -145,6 +148,7 @@ def register(ctx):
     global _ctx
     _ctx = ctx
     handover.sweep()
+    news.start(ctx)
     ctx.register_hook("pre_tool_call", on_tool_call)
     ctx.register_hook("post_tool_call", on_tool_result)
     ctx.register_hook("pre_gateway_dispatch", on_inbound)
