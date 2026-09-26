@@ -10,13 +10,14 @@ All notable changes to this plugin are documented here. The format follows
 
 ### Added
 
-- Handover offer when the assistant keeps hammering at one tool or keeps failing: a Telegram
-  card whose button opens the Senzu page as a Mini App, or a one-line offer on other channels.
-- Dossier written by the installation's own model and filed with the Senzu desk over MCP, only
-  shown to Senzu once the owner consents.
+- Handover offer when the assistant keeps hammering at one tool or keeps failing, on every
+  channel through the Hermes gateway.
+- Two handover modes: `ask` (default, nothing sent until the owner answers) and `auto` (the
+  installation's own model writes the dossier, the plugin files it over MCP and sends the
+  approval link).
 - Critical-action gate on Hermes' native approval prompt, with per-family `rule_key`s.
-- `hermes senzu setup` to connect the Senzu MCP server, `hermes senzu doctor` to check the
-  installation.
+- `hermes senzu setup` to connect the Senzu MCP server and pick the mode, `hermes senzu doctor`
+  to check the installation.
 
 [Unreleased]: https://github.com/senzutech/hermes-plugin-senzu/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/senzutech/hermes-plugin-senzu/releases/tag/v0.1.0

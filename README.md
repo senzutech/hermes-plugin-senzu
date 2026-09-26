@@ -2,7 +2,7 @@
 
 # Senzu for Hermes Agent
 
-**When your assistant gets stuck, the people who maintain it take over.**
+**Call in your maintenance experts when your assistant cannot cope on its own.**
 
 [![CI](https://github.com/senzutech/hermes-plugin-senzu/actions/workflows/ci.yml/badge.svg)](https://github.com/senzutech/hermes-plugin-senzu/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/senzutech/hermes-plugin-senzu?sort=semver)](https://github.com/senzutech/hermes-plugin-senzu/releases)
@@ -17,19 +17,22 @@
 
 ---
 
-AI assistants fail in a recognisable way: not with an error, but by trying the same thing
-again and again while the owner waits. A model in that state does not stop to ask for help,
-however it is instructed to. This plugin notices it for the model, and offers the owner a
-one-tap handover to [Senzu](https://senzu.tech), the team that installed and maintains the
-assistant.
+[Senzu](https://senzu.tech) is a paid maintenance service for businesses that run a Hermes
+assistant. This plugin is how its customers call on it: you install it because you want experts
+to take over from time to time, when the assistant (or you) cannot get something done alone.
 
-It also puts a human in the loop before the handful of actions that cannot be taken back.
+AI assistants get stuck in a recognisable way: not with an error, but by trying the same thing
+again and again while you wait. A model in that state does not stop to ask for help, however it
+is instructed to. The plugin notices it for the model and offers to hand the problem over to
+your Senzu experts. It also puts you in the loop before the handful of actions that cannot be
+taken back, with the option of having Senzu do them for you.
 
 | | |
 |---|---|
-| 🛟 **Handover offer** | When one tool dominates the recent calls without progress, the owner gets a card with a button (Telegram) or a one-line offer (every other channel). |
-| 🧾 **Dossier written for you** | On Telegram, the assistant's own model summarises what was tried, and the Senzu desk receives it only if the owner agrees. |
-| 🚦 **Critical-action gate** | Mass deletion, payments, public posts, invoices… open Hermes' native approval prompt, warning first. |
+| 🛟 **Handover when stuck** | When one tool dominates the recent calls without progress, you are offered to hand over, or it is handed over directly if you chose so. |
+| 🧾 **A dossier, not a transcript** | Senzu receives a summary: objective, blocker, what was tried, services involved. Never the conversation, never your files. |
+| 🚦 **Critical-action gate** | Mass deletion, payments, public posts, invoices… open Hermes' native approval prompt: the risk first, then the choice to do it now or have Senzu do it. |
+| 📡 **Every channel** | Everything goes through the Hermes gateway: Telegram, WhatsApp, Discord, Slack, email, CLI. |
 | 🔒 **No model judgement** | Every decision is arithmetic on tool calls. The model is never asked whether it is stuck or whether an action is dangerous. |
 
 ## Installation
@@ -54,14 +57,21 @@ hermes senzu doctor
 ✓ Clé SENZU_API_KEY
 ✓ Serveur MCP senzu déclaré
 ✓ Accès du plugin au MCP
-✓ Carte Telegram (TELEGRAM_BOT_TOKEN)
+• Reprise par Senzu : sur votre accord
 ```
+
+### Handover mode
+
+| `hermes senzu setup --handover …` | When the assistant is stuck |
+|---|---|
+| `ask` (default) | The reply ends with an offer. Nothing is sent to Senzu until you answer « Senzu »; the assistant then files the handover itself. |
+| `auto` | You decided once that Senzu may step in. The plugin writes the dossier with your assistant's model, files it, and sends you the link to approve the work. Nothing is done before you click. |
 
 <details>
 <summary>What <code>hermes senzu setup</code> writes</summary>
 
-The same configuration `hermes mcp add` and `hermes config set` would. The key stays in
-`~/.hermes/.env`; `config.yaml` only refers to it.
+The same configuration `hermes mcp add` and `hermes config set` would. The key stays in the
+Hermes environment file; `config.yaml` only refers to it.
 
 ```yaml
 mcp_servers:
@@ -74,10 +84,12 @@ mcp_servers:
 plugins:
   entries:
     senzu:
-      mcp_allowlist: [senzu]   # lets the plugin file the dossier itself
+      mcp_allowlist: [senzu]   # lets the plugin file the dossier itself (auto mode)
+      handover: ask            # or auto
 ```
 
-Options: `--key <key>` to set the key non-interactively, `--url <endpoint>` for another desk.
+Options: `--key <key>` to set the key non-interactively, `--url <endpoint>` for another desk,
+`--handover ask|auto`.
 
 </details>
 
@@ -96,7 +108,7 @@ To update: `hermes plugins install senzutech/hermes-plugin-senzu --force --enabl
 ## How it works
 
 ```text
- tool call ──► pre_tool_call ──► critical? ──► Hermes approval gate (warning, then offer)
+ tool call ──► pre_tool_call ──► critical? ──► Hermes approval gate (risk, then "or have Senzu do it")
      │
      ▼
  post_tool_call ──► record tool name + success, never the output (on disk, per session)
@@ -105,10 +117,10 @@ To update: `hermes plugins install senzutech/hermes-plugin-senzu --force --enabl
                                               │
                                              yes
                           ┌───────────────────┴────────────────────┐
-                     Telegram                                any other channel
-             reply unchanged, then a card:              offer appended to the reply:
-     dossier ─► senzu_signaler ─► 🛟 [Confier à Senzu]    « répondez Senzu »
-                                    (opens in Telegram)     ─► the model calls senzu_signaler
+                        ask                                       auto
+         offer appended to the reply              notice appended to the reply, then
+         « répondez Senzu »                       dossier ─► senzu_signaler ─► link sent
+            └─► you answer ─► senzu_signaler           through the gateway ─► you approve
 ```
 
 **"Stuck"** means one tool called at least 6 times *and* making up at least two fifths of the
@@ -126,14 +138,16 @@ Answering `[a]lways` at the gate mutes one family of actions (`senzu:fs-mass-del
 
 - **Tool outputs never leave the machine.** The plugin records a tool's name and whether it
   failed, nothing else.
-- **Nothing reaches Senzu without consent.** The first time, the button opens the data-sharing
-  notice; the dossier (objective, blocker, attempts, services involved) is only kept once the
-  owner agrees. The desk also masks anything credential-shaped (API keys, JWTs, IBANs) before
-  storing it.
-- **Links cannot be guessed.** Consent and acceptance pages are reached by 128-bit random tokens
-  that expire after 30 days, never by the public reference.
-- **Accepting is a human act.** Work is only marked accepted when the owner clicks on the
-  Senzu page; the plugin never calls `senzu_accepter`.
+- **You decide when Senzu hears about a problem.** In `ask` mode, nothing is sent until you
+  answer. In `auto` mode, a dossier is sent as soon as the assistant is stuck, because that is
+  what you chose at setup.
+- **Nothing reaches Senzu without consent.** The first time, the link opens the data-sharing
+  notice; the dossier is only kept once you agree. The desk also masks anything
+  credential-shaped (API keys, JWTs, IBANs) before storing it.
+- **Work only starts when you click.** Links are 128-bit random tokens that expire after 30
+  days, and the plugin never accepts work on your behalf.
+- **Messages go through your gateway.** The plugin never talks to a messaging platform directly
+  and needs no bot token.
 
 The plugin runs inside Hermes with its permissions. For a production install, have an
 administrator give the plugin directory (`~/.hermes/plugins/senzu`) to root and make it read-only
@@ -145,11 +159,11 @@ Please report vulnerabilities privately, see [SECURITY.md](SECURITY.md).
 
 | Hermes Agent | Plugin | Notes |
 |---|---|---|
-| September 2026 builds and later | 0.1.x | needs `transform_llm_output`, `ctx.llm`, `ctx.call_mcp` |
+| September 2026 builds and later | 0.1.x | needs `transform_llm_output`, `pre_gateway_dispatch`, `ctx.llm`, `ctx.call_mcp` |
 
-Telegram cards need the gateway's `TELEGRAM_BOT_TOKEN`. Other channels (Discord, Slack,
-WhatsApp, CLI…) get the text offer. Plugins are not loaded under `hermes serve` and
-`hermes dashboard` ([hermes-agent#102592](https://github.com/NousResearch/hermes-agent/issues/102592)).
+Outside the gateway (`hermes chat`), `auto` mode falls back to asking. Plugins are not loaded
+under `hermes serve` and `hermes dashboard`
+([hermes-agent#102592](https://github.com/NousResearch/hermes-agent/issues/102592)).
 
 ## Development
 

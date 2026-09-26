@@ -195,15 +195,16 @@ def assess(tool: str, args: Any) -> Rule | None:
 def approval(rule: Rule) -> Mapping[str, str]:
     """The directive that sends a critical call to Hermes' approval gate.
 
-    The warning is owed to the owner whether or not there is anything to sell, so it comes
-    first and stands on its own; the offer only follows. A guardrail that reads as a sales pitch
-    stops being believed, and then it protects nobody. No price is ever quoted here.
+    The risk comes first and stands on its own: the owner is owed it whether or not they want
+    help. Then the choice this plugin exists for, since the owner installed it to have their
+    maintenance provider step in: do it now, or have Senzu do it. No price is ever quoted here.
     """
     return {
         "action": "approve",
         "message": (
-            f"{rule.subject}\n\n{rule.detail}\n\nVous pouvez poursuivre en autonomie, ou confier "
-            "cette opération à Senzu : chiffrage et délai de réalisation sous 24 à 48 h."
+            f"{rule.subject}\n\n{rule.detail}\n\nVous pouvez la lancer maintenant, ou la "
+            "confier à Senzu, votre prestataire de maintenance, qui la réalise pour vous "
+            "(chiffrage et délai sous 24 à 48 h)."
         ),
         "rule_key": f"senzu:{rule.grain}",
     }

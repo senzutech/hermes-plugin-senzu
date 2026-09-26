@@ -1,11 +1,15 @@
 """Delivering the offer once the session deserves it.
 
-On Telegram, the reply is left untouched and a card follows it: the installation's own model
-writes the dossier from the conversation, the plugin files it with the Senzu desk over MCP, and
-the card's button opens the Senzu page inside Telegram, as a Mini App in a private chat. The
-owner never has to ask the model for anything.
+Two modes, chosen by the owner at setup (``hermes senzu setup --handover ask|auto``):
 
-Everywhere else, and whenever a step of that fails, the offer is appended to the reply as text.
+* ``ask`` (default): the offer is appended to the reply, and nothing leaves the machine until
+  the owner answers « Senzu ». The model then files the handover itself, which it does reliably
+  when its owner asks for it explicitly.
+* ``auto``: the owner has decided once that their maintenance provider may step in whenever the
+  assistant is stuck. The plugin has the installation's own model write the dossier, files it
+  with the Senzu desk over MCP, and sends the owner the link to approve the work.
+
+Everything goes through Hermes' gateway, so it reaches the owner on whatever channel they use.
 Nothing here may raise into Hermes: a handover that breaks must never be a reply that goes
 missing.
 """
@@ -17,7 +21,6 @@ import logging
 import os
 import re
 import time
-import urllib.request
 from pathlib import Path
 from typing import Any
 
@@ -122,56 +125,119 @@ def sweep() -> None:
         pass
 
 
-# --- Text, for every channel -------------------------------------------------------------------
+# --- The owner's choice ------------------------------------------------------------------------
+
+ASK, AUTO = "ask", "auto"
 
 
-def text_offer(reply: str, reading: Reading) -> str:
-    """The reply with the offer set apart after it. Accepting is one word, and a model does
-    what its owner explicitly asks: it then calls ``senzu_signaler`` itself."""
+def mode() -> str:
+    """``auto`` only when the owner chose it; anything else, or no config at all, asks."""
+    try:
+        from hermes_cli.config import load_config
+
+        entry = ((load_config() or {}).get("plugins") or {}).get("entries", {}).get("senzu") or {}
+    except Exception:
+        return ASK
+    return AUTO if entry.get("handover") == AUTO else ASK
+
+
+# --- What the owner reads ----------------------------------------------------------------------
+
+
+def ask_offer(reply: str, reading: Reading) -> str:
+    """The reply, then the offer. Nothing is sent until the owner answers."""
     return (
-        f"{reply.rstrip()}\n\n---\n[Senzu] Il semble que {reading.observed}. Senzu, qui maintient "
-        "cet assistant, peut reprendre ce point : répondez « Senzu » et le dossier leur est "
-        "transmis, sans engagement."
+        f"{reply.rstrip()}\n\n---\n[Senzu] Je n'avance plus : {reading.observed}. Vos experts "
+        "Senzu peuvent prendre le relais : répondez « Senzu » et je leur prépare le dossier. "
+        "Rien ne leur est envoyé sans votre réponse."
     )
 
 
-# --- Telegram ----------------------------------------------------------------------------------
+def auto_notice(reply: str, reading: Reading) -> str:
+    """The reply, then what is about to happen, as the owner agreed at setup."""
+    return (
+        f"{reply.rstrip()}\n\n---\n[Senzu] Je n'avance plus : {reading.observed}. Comme "
+        "convenu, je transmets le dossier à vos experts Senzu ; le lien pour valider leur "
+        "intervention arrive dans un instant."
+    )
 
 
-def telegram_chat(session_id: str) -> tuple[str | None, bool]:
-    """The Telegram chat behind a session, and whether it is a private one."""
+def link_message(dossier: dict, link: str) -> str:
+    if "/consentement/" in link:
+        return (
+            "[Senzu] Avant le premier envoi à vos experts Senzu, lisez ce qui leur sera "
+            f"transmis et donnez votre accord : {link}"
+        )
+    return (
+        f"[Senzu] Dossier transmis à vos experts Senzu : « {dossier['objectif']} ». "
+        f"Pour valider leur intervention, sans engagement avant ce clic : {link}"
+    )
+
+
+# --- The gateway -------------------------------------------------------------------------------
+
+
+class Gateway:
+    """The running gateway and its event loop, captured on the first inbound message.
+
+    ``pre_gateway_dispatch`` is the documented way for a plugin to reach
+    ``gateway.adapters[platform].send``; outside the gateway (``hermes chat``) there is none,
+    and the offer stays in the reply.
+    """
+
+    runner: Any = None
+    loop: Any = None
+
+    @classmethod
+    def capture(cls, gateway: Any) -> None:
+        import asyncio
+
+        cls.runner = gateway
+        try:
+            cls.loop = asyncio.get_running_loop()
+        except RuntimeError:
+            pass
+
+    @classmethod
+    def ready(cls) -> bool:
+        return cls.runner is not None and cls.loop is not None
+
+
+def origin(session_id: str) -> dict | None:
+    """Where a session's owner is reached: platform, chat and thread, from Hermes' session map."""
     try:
         sessions = json.loads((hermes_home() / "sessions" / "sessions.json").read_text())
     except (OSError, ValueError):
-        return None, False
+        return None
     for entry in sessions.values():
         if isinstance(entry, dict) and entry.get("session_id") == session_id:
-            origin = entry.get("origin") or {}
-            if origin.get("platform") == "telegram" and origin.get("chat_id"):
-                return str(origin["chat_id"]), origin.get("chat_type") == "dm"
-    return None, False
+            found = entry.get("origin") or {}
+            if found.get("platform") and found.get("chat_id"):
+                return found
+    return None
 
 
-def _send(chat_id: str, text: str, button: dict | None = None) -> None:
-    body: dict[str, Any] = {
-        "chat_id": chat_id,
-        "text": text,
-        "parse_mode": "HTML",
-        "disable_web_page_preview": True,
-    }
-    if button:
-        body["reply_markup"] = {"inline_keyboard": [[button]]}
-    request = urllib.request.Request(
-        f"https://api.telegram.org/bot{env('TELEGRAM_BOT_TOKEN')}/sendMessage",
-        data=json.dumps(body).encode(),
-        headers={"Content-Type": "application/json"},
+def send(where: dict, text: str) -> None:
+    """Send one message to the owner through the gateway adapter of their platform."""
+    import asyncio
+
+    # Keys are Hermes' Platform enum; match on its value rather than importing gateway internals.
+    adapter = next(
+        (
+            adapter
+            for key, adapter in Gateway.runner.adapters.items()
+            if getattr(key, "value", key) == where["platform"]
+        ),
+        None,
     )
-    with urllib.request.urlopen(request, timeout=15) as response:
-        response.read()
-
-
-def _escape(text: str) -> str:
-    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    if adapter is None:
+        raise RuntimeError(f"no adapter for {where['platform']}")
+    thread = where.get("thread_id")
+    metadata = {"thread_id": thread} if thread is not None else None
+    future = asyncio.run_coroutine_threadsafe(
+        adapter.send(str(where["chat_id"]), text, metadata=metadata), Gateway.loop
+    )
+    future.result(timeout=30)
 
 
 # --- The dossier -------------------------------------------------------------------------------
@@ -205,7 +271,7 @@ def write_dossier(ctx: Any, history: list) -> dict | None:
         if parsed is None:  # providers without structured output answer in plain text
             text = result.text or ""
             parsed = json.loads(text[text.find("{") : text.rfind("}") + 1])
-    except Exception as error:  # a broken dossier must not break the card
+    except Exception as error:  # a broken dossier must not break the handover
         log.warning("senzu: dossier not written: %s", error)
         return None
     if not isinstance(parsed, dict) or not parsed.get("objectif") or not parsed.get("blocage"):
@@ -234,34 +300,18 @@ def file_with_desk(ctx: Any, dossier: dict) -> str | None:
     return found.group(0) if found else None
 
 
-def card(ctx: Any, session_id: str, history: list, fallback: str) -> None:
-    """Write the dossier, file it, send the card. Runs off the turn, on its own thread."""
-    chat_id, private = telegram_chat(session_id)
-    if not chat_id:
+def auto_handover(ctx: Any, session_id: str, history: list, fallback: str) -> None:
+    """Write the dossier, file it, send the link. Runs off the turn, on its own thread."""
+    where = origin(session_id)
+    if where is None:
         return
     try:
         dossier = write_dossier(ctx, history)
         link = file_with_desk(ctx, dossier) if dossier else None
-        if not dossier or not link:
-            _send(chat_id, _escape(fallback.split("---", 1)[-1].strip()))
-            return
-        consent = "/consentement/" in link
-        text = (
-            "🛟 <b>Senzu peut prendre le relais</b>\n\n"
-            f"Je bloque sur : <i>{_escape(dossier['objectif'])}</i>\n\n"
-            "Senzu, qui maintient cet assistant, peut le reprendre à la main. "
-            + (
-                "Avant tout envoi, lisez ce qui leur serait transmis."
-                if consent
-                else "Le dossier est prêt, il ne manque que votre accord."
-            )
-            + "\n\n<i>Gratuit pendant l'alpha, sans engagement.</i>"
-        )
-        label = "Lire et donner mon accord" if consent else "Confier à Senzu"
-        # A Mini App opens as a sheet inside Telegram, but only in a private chat.
-        button = (
-            {"text": label, "web_app": {"url": link}} if private else {"text": label, "url": link}
-        )
-        _send(chat_id, text, button)
+        if dossier and link:
+            send(where, link_message(dossier, link))
+        else:
+            # Something failed on the way: fall back to asking, which needs nothing but the model.
+            send(where, fallback.split("---", 1)[-1].strip())
     except Exception as error:
-        log.warning("senzu: Telegram card not sent: %s", error)
+        log.warning("senzu: handover not delivered: %s", error)

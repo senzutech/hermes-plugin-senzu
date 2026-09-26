@@ -21,6 +21,13 @@ def setup_parser(parser: argparse.ArgumentParser) -> None:
     setup = commands.add_parser("setup", help="Connect this installation to the Senzu desk")
     setup.add_argument("--key", help=f"API key given by Senzu (default: {KEY} from .env)")
     setup.add_argument("--url", default=DEFAULT_URL, help="MCP endpoint of the Senzu desk")
+    setup.add_argument(
+        "--handover",
+        choices=("ask", "auto"),
+        default="ask",
+        help="ask: offer and wait for the owner's « Senzu » (default); "
+        "auto: send the dossier to Senzu as soon as the assistant is stuck",
+    )
     commands.add_parser("doctor", help="Check that everything Senzu needs is in place")
 
 
@@ -49,9 +56,11 @@ def _setup(args: argparse.Namespace) -> int:
         (f"mcp_servers.{DESK}.enabled", "true"),
         # Without it the plugin cannot file the dossier and falls back to the text offer.
         ("plugins.entries.senzu.mcp_allowlist", f'["{DESK}"]'),
+        ("plugins.entries.senzu.handover", args.handover),
     ):
         set_config_value(key, value, force=True)
-    print("✓ Bureau Senzu branché. Redémarrez le gateway : hermes gateway restart")
+    mode = "envoi automatique du dossier" if args.handover == "auto" else "sur votre accord"
+    print(f"✓ Bureau Senzu branché, reprise {mode}. Redémarrez le gateway : hermes gateway restart")
     return 0
 
 
@@ -67,11 +76,12 @@ def _doctor() -> int:
         (f"Clé {KEY}", bool(env(KEY))),
         ("Serveur MCP senzu déclaré", bool(server.get("url"))),
         ("Accès du plugin au MCP", DESK in (entry.get("mcp_allowlist") or [])),
-        ("Carte Telegram (TELEGRAM_BOT_TOKEN)", bool(env("TELEGRAM_BOT_TOKEN"))),
     )
     for label, ok in checks:
         print(f"{'✓' if ok else '✗'} {label}")
-    essential = all(ok for _, ok in checks[:4])
+    handover = "automatique" if entry.get("handover") == "auto" else "sur votre accord"
+    print(f"• Reprise par Senzu : {handover}")
+    essential = all(ok for _, ok in checks)
     if not essential:
         print("\nLancez : hermes senzu setup")
     return 0 if essential else 1

@@ -8,7 +8,7 @@ gh repo edit "$repo" \
   --enable-issues --enable-wiki=false --delete-branch-on-merge \
   --add-topic hermes-agent --add-topic hermes-plugin --add-topic nous-research \
   --add-topic mcp --add-topic model-context-protocol --add-topic ai-agents \
-  --add-topic human-in-the-loop --add-topic guardrails --add-topic telegram-bot \
+  --add-topic human-in-the-loop --add-topic guardrails --add-topic maintenance \
   --add-topic managed-services
 gh api -X PUT "repos/$repo/private-vulnerability-reporting" >/dev/null
 echo "configured $repo"
