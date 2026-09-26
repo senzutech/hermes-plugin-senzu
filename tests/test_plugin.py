@@ -2,8 +2,11 @@
 
 import asyncio
 import json
+import sys
 import threading
+import types
 
+import pytest
 import senzu
 from senzu import handover, settings
 
@@ -46,6 +49,13 @@ class FakeAdapter:
         self.sent.append((chat_id, content))
 
 
+@pytest.fixture(autouse=True)
+def no_gateway(monkeypatch):
+    """Each test starts outside the gateway, as `hermes chat` would."""
+    monkeypatch.setattr(handover.Gateway, "runner", None)
+    monkeypatch.setattr(handover.Gateway, "loop", None)
+
+
 def hammer(session_id, times=7):
     for _ in range(times):
         senzu.on_tool_result(tool_name="terminal", session_id=session_id, status="ok")
@@ -71,9 +81,9 @@ def test_by_default_the_owner_is_asked_and_nothing_is_sent(tmp_path, monkeypatch
     monkeypatch.setattr(settings, "_entry", lambda: {})
     hammer("s")
     reply = senzu.on_reply(response_text="Je réessaie.", session_id="s")
-    assert reply.startswith("Je réessaie.\n\n---\n[Senzu]")
+    assert reply.startswith("Je réessaie.\n\n---\n🛟 Je n'avance plus")
     assert "7 fois" in reply and "« Senzu »" in reply
-    assert "Rien ne leur est envoyé sans votre réponse" in reply
+    assert "Rien ne leur est envoyé sans votre accord" in reply
     assert senzu.on_reply(response_text="Encore.", session_id="s") is None, "offered once"
 
 
@@ -167,15 +177,15 @@ def test_a_guardrail_halt_sends_the_offer_through_the_gateway(tmp_path, monkeypa
     loop.call_soon_threadsafe(loop.stop)
 
 
-def test_no_second_offer_when_the_reply_already_carried_one(tmp_path, monkeypatch):
+def test_no_second_offer_when_this_turn_already_made_one(tmp_path, monkeypatch):
     monkeypatch.setenv("HERMES_HOME", str(tmp_path))
     monkeypatch.setattr(settings, "_entry", lambda: {})
     adapter, loop = _gateway(tmp_path)
     monkeypatch.setattr(threading, "Thread", _Inline)
     hammer("h", times=7)
-    assert senzu.on_reply(response_text="Je réessaie.", session_id="h")
+    assert senzu.on_reply(response_text="Je réessaie.", session_id="h") is None
     senzu.on_turn_finished(session_id="h", turn_exit_reason="guardrail_halt")
-    assert adapter.sent == []
+    assert len(adapter.sent) == 1, "the offer, once"
     loop.call_soon_threadsafe(loop.stop)
 
 
@@ -190,14 +200,14 @@ def test_an_ordinary_turn_end_sends_nothing(tmp_path, monkeypatch):
 class _Inline:
     """Runs the thread's target at once, without the delay, so the test sees the send."""
 
-    def __init__(self, target, args=(), **_):
-        self.target, self.args = target, args
+    def __init__(self, target, args=(), kwargs=None, **_):
+        self.target, self.args, self.kwargs = target, args, kwargs or {}
 
     def start(self):
         if self.target is handover.send_later:
-            handover.send(*self.args[:2])
+            handover.send(*self.args[:2], **self.kwargs)
         else:
-            self.target(*self.args)
+            self.target(*self.args, **self.kwargs)
 
 
 def _event(text, platform="telegram", chat_id="7"):
@@ -226,3 +236,46 @@ def test_an_ordinary_message_after_an_offer_is_left_alone(tmp_path, monkeypatch)
     monkeypatch.setenv("HERMES_HOME", str(tmp_path))
     handover.remember_offer({"platform": "telegram", "chat_id": "7"})
     assert senzu.on_inbound(event=_event("et Senzu c'est quoi ?")) is None
+
+
+class FakeBot:
+    def __init__(self):
+        self.sent = []
+
+    async def send_message(self, **kwargs):
+        self.sent.append(kwargs)
+
+
+def _fake_telegram(monkeypatch):
+    module = types.ModuleType("telegram")
+    module.KeyboardButton = lambda text: {"text": text}
+    module.ReplyKeyboardMarkup = lambda rows, **kw: {"keyboard": rows, **kw}
+    monkeypatch.setitem(sys.modules, "telegram", module)
+
+
+def test_on_telegram_the_offer_follows_the_reply_with_a_button(tmp_path, monkeypatch):
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    monkeypatch.setattr(settings, "_entry", lambda: {})
+    _fake_telegram(monkeypatch)
+    adapter, loop = _gateway(tmp_path)
+    adapter._bot = FakeBot()
+    monkeypatch.setattr(threading, "Thread", _Inline)
+    hammer("h", times=7)
+    assert senzu.on_reply(response_text="Je réessaie.", session_id="h") is None, "reply untouched"
+    (sent,) = adapter._bot.sent
+    assert "touchez « 🛟 Confier à Senzu »" in sent["text"]
+    assert sent["reply_markup"]["keyboard"] == [[{"text": "🛟 Confier à Senzu"}]]
+    tapped = senzu.on_inbound(event=_event("🛟 Confier à Senzu"))
+    assert tapped["action"] == "rewrite" and "senzu_signaler" in tapped["text"]
+    loop.call_soon_threadsafe(loop.stop)
+
+
+def test_elsewhere_the_offer_follows_as_text_to_answer(tmp_path, monkeypatch):
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    monkeypatch.setattr(settings, "_entry", lambda: {})
+    adapter, loop = _gateway(tmp_path, platform="discord")
+    monkeypatch.setattr(threading, "Thread", _Inline)
+    hammer("h", times=7)
+    assert senzu.on_reply(response_text="Je réessaie.", session_id="h") is None
+    assert "répondez « Senzu »" in adapter.sent[0][1]
+    loop.call_soon_threadsafe(loop.stop)

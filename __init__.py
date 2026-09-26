@@ -75,9 +75,20 @@ def on_reply(response_text="", session_id="", **_):
     log.info("senzu: %d calls, offer made (%s)", len(calls), "auto" if automatic else "ask")
     if not automatic:
         where = handover.origin(session_id)
-        if where is not None:
-            handover.remember_offer(where)
-        return offer
+        if where is None or not handover.Gateway.ready():
+            return offer  # no gateway (hermes chat): the offer rides on the reply
+        # On the gateway the offer follows the reply as its own message, with a button where the
+        # channel has one; on_inbound understands the tap, or the typed « Senzu ».
+        handover.remember_offer(where)
+        button = handover.has_button(where)
+        threading.Thread(
+            target=handover.send_later,
+            args=(where, handover.offer_message(reading, button=button)),
+            kwargs={"button": button},
+            name="senzu-offer",
+            daemon=True,
+        ).start()
+        return None
     _pending[session_id] = offer
     return handover.auto_notice(response_text, reading)
 
@@ -112,9 +123,11 @@ def on_turn_finished(session_id="", turn_exit_reason="", **_):
     handover.save(session_id, [])
     handover.remember_offer(where)
     log.info("senzu: guardrail halt, offer sent")
+    button = handover.has_button(where)
     threading.Thread(
         target=handover.send_later,
-        args=(where, handover.halt_offer()),
+        args=(where, handover.halt_offer(button=button)),
+        kwargs={"button": button},
         name="senzu-halt-offer",
         daemon=True,
     ).start()

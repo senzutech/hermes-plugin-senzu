@@ -128,13 +128,23 @@ def sweep() -> None:
 # --- What the owner reads ----------------------------------------------------------------------
 
 
-def ask_offer(reply: str, reading: Reading) -> str:
-    """The reply, then the offer. Nothing is sent until the owner answers."""
+# The button's label. Pressing a keyboard button sends its label as the owner's message, which
+# on_inbound then recognises: no callback to wire, nothing Hermes would have to forward.
+BUTTON = "🛟 Confier à Senzu"
+
+
+def offer_message(reading: Reading, *, button: bool) -> str:
+    """The offer on its own, sent after the reply. With a button, the owner just taps it."""
+    how = f"touchez « {BUTTON} »" if button else "répondez « Senzu »"
     return (
-        f"{reply.rstrip()}\n\n---\n[Senzu] Je n'avance plus : {reading.observed}. Vos experts "
-        "Senzu peuvent prendre le relais : répondez « Senzu » et je leur prépare le dossier. "
-        "Rien ne leur est envoyé sans votre réponse."
+        f"🛟 Je n'avance plus : {reading.observed}. Vos experts Senzu peuvent prendre le relais : "
+        f"{how} et je leur prépare le dossier. Rien ne leur est envoyé sans votre accord."
     )
+
+
+def ask_offer(reply: str, reading: Reading) -> str:
+    """The reply, then the offer, for when there is no gateway to send a separate message."""
+    return f"{reply.rstrip()}\n\n---\n{offer_message(reading, button=False)}"
 
 
 def auto_notice(reply: str, reading: Reading) -> str:
@@ -146,13 +156,19 @@ def auto_notice(reply: str, reading: Reading) -> str:
     )
 
 
-def halt_offer() -> str:
+def halt_offer(*, button: bool) -> str:
     """Hermes itself stopped the turn for looping: the plainest proof the assistant is stuck."""
+    how = f"touchez « {BUTTON} »" if button else "répondez « Senzu »"
     return (
-        "[Senzu] Hermes vient d'arrêter cette tâche : l'assistant tournait en rond. Vos experts "
-        "Senzu peuvent prendre le relais : répondez « Senzu » et je leur prépare le dossier. Rien "
-        "ne leur est envoyé sans votre réponse."
+        "🛟 Hermes vient d'arrêter cette tâche : l'assistant tournait en rond. Vos experts Senzu "
+        f"peuvent prendre le relais : {how} et je leur prépare le dossier. Rien ne leur est "
+        "envoyé sans votre accord."
     )
+
+
+def has_button(where: dict) -> bool:
+    """Only Telegram gets the button, for now; every other channel gets the word to type."""
+    return where.get("platform") == "telegram"
 
 
 def link_message(dossier: dict, link: str) -> str:
@@ -214,7 +230,7 @@ def origin(session_id: str) -> dict | None:
 
 # How long an offer stays open for a one-word « Senzu ».
 OFFER_VALIDITY = 24 * 3600
-ACCEPTANCES = {"senzu", "ouisenzu", "oksenzu", "gosenzu", "vasysenzu"}
+ACCEPTANCES = {"senzu", "ouisenzu", "oksenzu", "gosenzu", "vasysenzu", "confieràsenzu"}
 HANDOVER_REQUEST = (
     "Oui, je veux que Senzu prenne le relais. Appelle l'outil senzu_signaler (serveur MCP senzu) "
     "avec un résumé de ce sur quoi tu bloques : l'objectif, le blocage, ce qui a déjà été essayé "
@@ -265,7 +281,29 @@ def accepts_offer(text: str, platform: Any, chat_id: Any) -> bool:
     return True
 
 
-def send(where: dict, text: str) -> None:
+def _with_button(adapter: Any, where: dict, text: str):
+    """On Telegram, the same message with a one-tap keyboard button, through the bot the gateway
+    already runs. None when that is not possible, and the plain message goes instead."""
+    bot = getattr(adapter, "_bot", None)
+    if where.get("platform") != "telegram" or bot is None:
+        return None
+    try:
+        from telegram import KeyboardButton, ReplyKeyboardMarkup
+    except ImportError:
+        return None
+    keyboard = ReplyKeyboardMarkup(
+        [[KeyboardButton(BUTTON)]], one_time_keyboard=True, resize_keyboard=True
+    )
+    thread = where.get("thread_id")
+    return bot.send_message(
+        chat_id=where["chat_id"],
+        text=text,
+        reply_markup=keyboard,
+        message_thread_id=int(thread) if thread not in (None, "") else None,
+    )
+
+
+def send(where: dict, text: str, *, button: bool = False) -> None:
     """Send one message to the owner through the gateway adapter of their platform."""
     import asyncio
 
@@ -280,12 +318,12 @@ def send(where: dict, text: str) -> None:
     )
     if adapter is None:
         raise RuntimeError(f"no adapter for {where['platform']}")
-    thread = where.get("thread_id")
-    metadata = {"thread_id": thread} if thread is not None else None
-    future = asyncio.run_coroutine_threadsafe(
-        adapter.send(str(where["chat_id"]), text, metadata=metadata), Gateway.loop
-    )
-    future.result(timeout=30)
+    coroutine = _with_button(adapter, where, text) if button else None
+    if coroutine is None:
+        thread = where.get("thread_id")
+        metadata = {"thread_id": thread} if thread is not None else None
+        coroutine = adapter.send(str(where["chat_id"]), text, metadata=metadata)
+    asyncio.run_coroutine_threadsafe(coroutine, Gateway.loop).result(timeout=30)
 
 
 # --- The dossier -------------------------------------------------------------------------------
@@ -348,11 +386,11 @@ def file_with_desk(ctx: Any, dossier: dict) -> str | None:
     return found.group(0) if found else None
 
 
-def send_later(where: dict, text: str, delay: float = 3.0) -> None:
+def send_later(where: dict, text: str, delay: float = 3.0, *, button: bool = False) -> None:
     """Send after Hermes' own message has gone out, so the offer reads as the follow-up."""
     time.sleep(delay)
     try:
-        send(where, text)
+        send(where, text, button=button)
     except Exception as error:
         log.warning("senzu: offer not delivered: %s", error)
 
