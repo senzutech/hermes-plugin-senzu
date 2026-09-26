@@ -53,7 +53,7 @@ def test_history_survives_on_disk(tmp_path, monkeypatch):
 
 
 def test_critical_calls_go_to_the_gate():
-    assert senzu.on_tool_call(tool_name="terminal", args={"command": "rm -rf /"})["action"] == (
+    assert senzu.on_tool_call(tool_name="terminal", args={"command": "rm -rf data"})["action"] == (
         "approve"
     )
     assert senzu.on_tool_call(tool_name="read_file", args={"path": "a"}) is None

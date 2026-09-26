@@ -6,7 +6,8 @@ rated calls, and anything absent from the table passes in silence. A catalogue t
 everything is the same product as no catalogue at all, because the owner learns to answer
 "always" without reading.
 
-Only critical calls reach the owner, through Hermes' own approval gate. The ``rule_key`` is the
+Only critical calls reach the owner, through Hermes' own approval gate, so the table holds
+nothing else: a rule that only rates "notable" would never be acted on. The ``rule_key`` is the
 grain Hermes' ``[a]lways`` answer remembers, so an owner who says "always" mutes that family of
 actions and stays warned about every other. It never depends on the arguments, or it would
 never be reused and so never be muted.
@@ -118,42 +119,6 @@ CATALOGUE = (
         "db-destructive",
     ),
     Rule(
-        "terminal",
-        True,
-        "sudo ",
-        (R.COSTLY, B.COMPANY, S.PLAIN),
-        "Commande administrateur sur le serveur",
-        "Elle s'exécute avec tous les droits, hors du périmètre habituel de l'assistant.",
-        "server-privileged",
-    ),
-    Rule(
-        "terminal",
-        True,
-        "systemctl",
-        (R.COSTLY, B.COMPANY, S.PLAIN),
-        "Redémarrage ou arrêt d'un service",
-        "Le service concerné sera indisponible le temps de l'opération.",
-        "server-service",
-    ),
-    Rule(
-        "terminal",
-        True,
-        "install",
-        (R.COSTLY, B.COMPANY, S.PLAIN),
-        "Installation d'un logiciel sur le serveur",
-        "Un paquet installé à la volée n'est ni suivi ni mis à jour ensuite.",
-        "server-install",
-    ),
-    Rule(
-        "send_message",
-        True,
-        None,
-        (R.COSTLY, B.OUTSIDE, S.PLAIN),
-        "Envoi d'un message à un tiers",
-        "Le message part au nom de l'entreprise et ne peut être que corrigé, pas repris.",
-        "outbound-message",
-    ),
-    Rule(
         "send_message",
         True,
         "€",
@@ -215,24 +180,6 @@ CATALOGUE = (
         "Accès au coffre d'identifiants",
         "Des identifiants vont être lus ou utilisés pour se connecter à un service.",
         "credentials",
-    ),
-    Rule(
-        "cronjob_manage",
-        True,
-        None,
-        (R.COSTLY, B.COMPANY, S.PLAIN),
-        "Modification des automatismes",
-        "Une tâche planifiée continue de tourner seule, y compris quand elle se trompe.",
-        "automation-change",
-    ),
-    Rule(
-        "delegate_task",
-        True,
-        None,
-        (R.COSTLY, B.COMPANY, S.PLAIN),
-        "Délégation à un agent autonome",
-        "Le sous-agent enchaînera ses propres actions sans repasser par vous.",
-        "subagent",
     ),
 )
 

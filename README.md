@@ -135,12 +135,9 @@ Answering `[a]lways` at the gate mutes one family of actions (`senzu:fs-mass-del
 - **Accepting is a human act.** Work is only marked accepted when the owner clicks on the
   Senzu page; the plugin never calls `senzu_accepter`.
 
-The plugin runs inside Hermes with its permissions. For a production install, make its directory
-read-only for the Hermes user so the assistant cannot rewrite its own guardrail:
-
-```bash
-sudo chown -R root:root ~hermes/.hermes/plugins/senzu && sudo chmod -R go-w ~hermes/.hermes/plugins/senzu
-```
+The plugin runs inside Hermes with its permissions. For a production install, have an
+administrator give the plugin directory (`~/.hermes/plugins/senzu`) to root and make it read-only
+for the Hermes user, so the assistant cannot rewrite its own guardrail.
 
 Please report vulnerabilities privately, see [SECURITY.md](SECURITY.md).
 

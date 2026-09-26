@@ -22,13 +22,13 @@ def test_a_plain_shell_command_is_not_rated():
 
 
 def test_mass_deletion_goes_to_the_gate():
-    directive = approval(assess("terminal", {"command": "rm -rf /srv/data"}))
+    directive = approval(assess("terminal", {"command": "rm -rf data"}))
     assert directive["action"] == "approve"
     assert directive["rule_key"] == "senzu:fs-mass-delete"
 
 
-def test_a_message_warns_but_a_priced_message_escalates():
-    assert assess("send_message", {"text": "je passe demain"}).criticality is Criticality.NOTABLE
+def test_a_plain_message_passes_but_a_priced_message_escalates():
+    assert assess("send_message", {"text": "je passe demain"}) is None
     priced = assess("send_message", {"text": "ce sera 4500 €"})
     assert priced.criticality is Criticality.CRITICAL
     assert priced.grain == "outbound-commitment"
@@ -41,12 +41,12 @@ def test_an_mcp_tool_is_matched_on_its_name():
 
 
 def test_the_rule_key_never_depends_on_the_arguments():
-    first = approval(assess("terminal", {"command": "rm -rf /a"}))
-    second = approval(assess("terminal", {"command": "rm -rf /b"}))
+    first = approval(assess("terminal", {"command": "rm -rf build"}))
+    second = approval(assess("terminal", {"command": "rm -rf dist"}))
     assert first["rule_key"] == second["rule_key"]
 
 
 def test_the_warning_comes_before_the_offer_and_no_price_is_quoted():
-    message = approval(assess("terminal", {"command": "rm -rf /srv"}))["message"]
+    message = approval(assess("terminal", {"command": "rm -rf backups"}))["message"]
     assert message.index("récupérables") < message.index("Senzu")
     assert "€" not in message
