@@ -20,8 +20,7 @@ All notable changes to this plugin are documented here. The format follows
 - The owner's one-word « Senzu » to an open offer (24 h) is rewritten into an explicit handover
   request before it reaches the model, which otherwise may not know an offer was made.
 - Per-installation settings, `threshold` (default 6) and `handover`, read on every reply;
-  changed with `hermes senzu setup`, `hermes config set`, or the `senzu_settings` tool the
-  assistant calls when its owner asks.
+  changed with `hermes senzu setup` or `hermes config set`.
 - Critical-action gate on Hermes' native approval prompt, with per-family `rule_key`s.
 - `hermes senzu setup` to connect the Senzu MCP server and pick the mode, `hermes senzu doctor`
   to check the installation.

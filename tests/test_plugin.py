@@ -64,7 +64,6 @@ def test_register_wires_every_hook_and_the_command(tmp_path, monkeypatch):
         "on_session_end",
     }
     assert "senzu" in ctx.commands
-    assert "tool:senzu_settings" in ctx.commands
 
 
 def test_by_default_the_owner_is_asked_and_nothing_is_sent(tmp_path, monkeypatch):

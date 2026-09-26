@@ -77,9 +77,7 @@ hermes senzu setup --threshold 10 --handover auto      # only what you pass is c
 hermes config set plugins.entries.senzu.threshold 10
 ```
 
-or simply ask your assistant (« propose Senzu moins souvent », « attends 10 tentatives avant de
-proposer Senzu », « envoie directement le dossier à Senzu »): it has a `senzu_settings` tool for
-exactly that.
+The defaults suit most installations; there is nothing to configure to get started.
 
 ### Handover mode
 
@@ -161,19 +159,11 @@ Answering `[a]lways` at the gate mutes one family of actions (`senzu:fs-mass-del
 
 ## For agents
 
-If the owner asks you to change when Senzu is offered, call the `senzu_settings` tool:
-
-| Owner says | Call |
-|---|---|
-| « Propose Senzu moins souvent », « attends plus longtemps » | `senzu_settings(threshold=<higher>)`, e.g. 10 |
-| « Propose Senzu plus tôt » | `senzu_settings(threshold=<lower>)`, at least 3 |
-| « Envoie directement le dossier à Senzu » | `senzu_settings(handover="auto")` |
-| « Demande-moi avant d'envoyer quoi que ce soit » | `senzu_settings(handover="ask")` |
-| « Quels sont les réglages Senzu ? » | `senzu_settings()` |
-
-It returns the settings now in force; tell the owner what changed. No restart is needed. Without
-the tool (for instance from a shell), `hermes senzu setup --threshold <n>` does the same. Never
-change these settings on your own initiative.
+These settings are the owner's business, changed from the command line. If the owner explicitly
+asks you to change them, run `hermes senzu setup --threshold <n>` or
+`hermes senzu setup --handover ask|auto` (only what you pass changes; no restart needed) and say
+what you changed. Never bring them up yourself, and never discuss them when the owner answers
+« Senzu »: that answer means hand the problem over, by calling `senzu_signaler`.
 
 ## Privacy and security
 

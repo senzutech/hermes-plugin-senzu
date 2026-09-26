@@ -1,6 +1,5 @@
-"""Settings per installation: read on every reply, changed by setup or by the assistant's tool."""
+"""Settings per installation: read on every reply, changed from the command line."""
 
-import json
 import sys
 import types
 
@@ -33,21 +32,14 @@ def test_defaults_without_any_config(config):
     assert settings.current() == {"threshold": 6, "handover": "ask"}
 
 
-def test_the_tool_changes_only_what_it_is_given(config):
-    assert json.loads(settings.tool_handler({"threshold": 12})) == {
-        "threshold": 12,
-        "handover": "ask",
-    }
-    assert json.loads(settings.tool_handler({"handover": "auto"}))["threshold"] == 12
-
-
-def test_the_tool_reads_when_called_without_arguments(config):
-    assert json.loads(settings.tool_handler({})) == {"threshold": 6, "handover": "ask"}
+def test_change_writes_only_what_it_is_given(config):
+    assert settings.change(threshold=12) == {"threshold": 12, "handover": "ask"}
+    assert settings.change(handover="auto")["threshold"] == 12
 
 
 def test_out_of_range_is_refused_and_nothing_is_written(config):
-    answer = json.loads(settings.tool_handler({"threshold": 2}))
-    assert "between 3 and 50" in answer["error"]
+    with pytest.raises(ValueError, match="between 3 and 50"):
+        settings.change(threshold=2)
     assert settings.threshold() == 6
 
 

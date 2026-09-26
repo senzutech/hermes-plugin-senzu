@@ -130,13 +130,6 @@ def register(ctx):
     ctx.register_hook("transform_llm_output", on_reply)
     ctx.register_hook("post_llm_call", on_turn_end)
     ctx.register_hook("on_session_end", on_turn_finished)
-    ctx.register_tool(
-        name="senzu_settings",
-        toolset="senzu",
-        schema=settings.TOOL_SCHEMA,
-        handler=settings.tool_handler,
-        description="Change when Senzu is offered, when the owner asks",
-    )
     ctx.register_cli_command(
         name="senzu",
         help="Connect to the Senzu desk and check the installation",
