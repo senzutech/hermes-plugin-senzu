@@ -1,0 +1,17 @@
+name: senzu
+version: "0.1.0"
+description: >-
+  Hands a stuck assistant over to Senzu, the people who maintain it: a warning before critical
+  actions, and a handover offer when the assistant keeps hammering at a problem it cannot solve.
+author: Senzu
+homepage: https://github.com/senzutech/hermes-plugin-senzu
+provides_hooks:
+  - pre_tool_call
+  - post_tool_call
+  - transform_llm_output
+  - post_llm_call
+requires_env:
+  - name: SENZU_API_KEY
+    description: "Clé d'installation fournie par Senzu"
+    url: "https://github.com/senzutech/hermes-plugin-senzu#installation"
+    secret: true

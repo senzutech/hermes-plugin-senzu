@@ -1,0 +1,41 @@
+name: Release
+
+# Push a tag vX.Y.Z whose version matches plugin.yaml; the release notes are the matching
+# CHANGELOG.md section. Hermes installs from the repository, so the release is the pin users
+# copy: its commit is what `hermes plugins install --ref` and the plugin catalog point at.
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Test
+        run: uvx --with pytest pytest -c tests/pytest.ini
+      - name: Tag matches plugin.yaml
+        run: |
+          version=$(sed -n 's/^version: *"\{0,1\}\([^"]*\)"\{0,1\}$/\1/p' plugin.yaml)
+          [ "v$version" = "$GITHUB_REF_NAME" ] || { echo "tag $GITHUB_REF_NAME, plugin.yaml $version"; exit 1; }
+      - name: Notes from CHANGELOG.md
+        run: |
+          version=${GITHUB_REF_NAME#v}
+          awk -v v="$version" '$0 ~ "^## \\[" v "\\]" {on=1; next} /^## \[/ {on=0} on' CHANGELOG.md > notes.md
+          {
+            echo
+            echo "### Install"
+            echo
+            echo '```bash'
+            echo "hermes plugins install senzutech/hermes-plugin-senzu --ref $GITHUB_SHA --enable"
+            echo "hermes senzu setup"
+            echo '```'
+          } >> notes.md
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file notes.md --verify-tag

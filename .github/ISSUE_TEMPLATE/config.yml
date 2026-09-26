@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/senzutech/hermes-plugin-senzu/security/advisories/new
+    about: Report privately, please.
+  - name: Senzu support
+    url: https://senzu.tech
+    about: Questions about your installation or the Senzu service.
