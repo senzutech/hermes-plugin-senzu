@@ -121,7 +121,7 @@ Options: `--key <key>` to set the key non-interactively, `--url <endpoint>` for 
 <summary>Pinning a version</summary>
 
 ```bash
-hermes plugins install senzutech/hermes-plugin-senzu --ref <commit-sha> --enable
+hermes plugins install senzutech/hermes-plugin-senzu --ref v0.2.0 --enable
 ```
 
 Releases are listed on the [releases page](https://github.com/senzutech/hermes-plugin-senzu/releases).
@@ -158,8 +158,9 @@ after the desk has been called.
 
 **News** of a handover reach you without any open port: after a handover is filed, the plugin
 asks the Senzu desk for news (one call per installation, however many handovers), at the pace
-the desk sets: two minutes after something happened, up to half an hour when it goes quiet, and
-not at all once nothing is open. What changed is sent to the chat the handover came from.
+the desk sets: two minutes after something happened, up to half an hour when it goes quiet, at most
+five minutes while Senzu is working on the machine, and not at all once nothing is open. After a
+gateway restart it picks up at once, without waiting for your next message. What changed is sent to the chat the handover came from.
 
 **Critical actions** are rated on three axes (reversibility, who is affected, what is at stake).
 The catalogue lives in [`guard.py`](guard.py); anything absent from it passes in silence.
@@ -212,7 +213,7 @@ Please report vulnerabilities privately, see [SECURITY.md](SECURITY.md).
 
 | Hermes Agent | Plugin | Notes |
 |---|---|---|
-| September 2026 builds and later | 0.1.x | needs `transform_llm_output`, `pre_gateway_dispatch`, `on_session_end`, `gateway_platform_event`, `ctx.inject_message`, `ctx.llm`, `ctx.call_mcp` |
+| September 2026 builds and later | 0.1.x, 0.2.x | needs `transform_llm_output`, `pre_gateway_dispatch`, `on_session_end`, `gateway_platform_event`, `ctx.inject_message`, `ctx.llm`, `ctx.call_mcp` |
 
 Outside the gateway (`hermes chat`), `auto` mode falls back to asking. Plugins are not loaded
 under `hermes serve` and `hermes dashboard`
@@ -226,7 +227,20 @@ uvx --with pytest pytest -c tests/pytest.ini
 ```
 
 The repository root is the plugin itself, which is what `hermes plugins install` expects; the
-tests load it the way Hermes does.
+tests load it the way Hermes does. One module per subject:
+
+| Module | Subject |
+|---|---|
+| `__init__.py` | Hook registration |
+| `stuck.py` | Reading a session: is the assistant stuck? |
+| `offers.py` | The offer and the owner's answer (« Senzu », a reaction) |
+| `handover.py` | Auto mode: the dossier, filing it with the desk |
+| `channel.py` | The running gateway, sending to the owner |
+| `news.py` | Asking the desk for news while a handover is open |
+| `access.py` | Senzu's maintenance access, through senzu-access |
+| `guard.py` | Critical-action gate |
+| `history.py`, `home.py`, `settings.py` | Recorded calls, paths, per-installation settings |
+| `cli.py` | `hermes senzu setup` and `doctor` |
 
 ## License
 
