@@ -6,6 +6,23 @@ All notable changes to this plugin are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- News of open handovers (payment received, validation, Senzu's messages, refunds) relayed to
+  the owner's chat, by asking the desk at the pace it sets, only while a handover is open.
+- Maintenance access: where [senzu-access](https://github.com/senzutech/senzu-access) is
+  installed, the plugin asks for Senzu's SSH access to open while a paid handover is in
+  progress and to close when it is done, reports each change to the desk (host, port, host key
+  fingerprint) and tells the owner. The plugin needs no elevated rights.
+
+### Changed
+
+- After a gateway restart, news and the maintenance access are followed right away, without
+  waiting for the owner's next message: the running gateway is found the way Hermes' own
+  `send_message` tool finds it.
+- `handover.py` split into `home`, `history`, `channel`, `offers` and `handover`, one subject
+  each. No behaviour change.
+
 ## [0.1.0] - 2026-09-26
 
 ### Added
@@ -22,12 +39,6 @@ All notable changes to this plugin are documented here. The format follows
   `ctx.inject_message`; typing « Senzu » works everywhere.
 - The owner's one-word « Senzu » to an open offer (24 h) is rewritten into an explicit handover
   request before it reaches the model, which otherwise may not know an offer was made.
-- News of open handovers (payment received, validation, Senzu's messages, refunds) relayed to
-  the owner's chat, by asking the desk at the pace it sets, only while a handover is open.
-- Maintenance access: where [senzu-access](https://github.com/senzutech/senzu-access) is
-  installed, the plugin asks for Senzu's SSH access to open while a paid handover is in
-  progress and to close when it is done, reports each change to the desk (host, port, host key
-  fingerprint) and tells the owner. The plugin needs no elevated rights.
 - Per-installation settings, `threshold` (default 6) and `handover`, read on every reply;
   changed with `hermes senzu setup` or `hermes config set`.
 - Critical-action gate on Hermes' native approval prompt, with per-family `rule_key`s.

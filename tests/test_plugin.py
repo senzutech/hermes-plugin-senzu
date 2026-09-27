@@ -6,7 +6,7 @@ import threading
 
 import pytest
 import senzu
-from senzu import handover, settings
+from senzu import channel, handover, history, offers, settings
 
 
 class FakeContext:
@@ -55,8 +55,8 @@ class FakeAdapter:
 @pytest.fixture(autouse=True)
 def no_gateway(monkeypatch):
     """Each test starts outside the gateway, as `hermes chat` would."""
-    monkeypatch.setattr(handover.Gateway, "runner", None)
-    monkeypatch.setattr(handover.Gateway, "loop", None)
+    monkeypatch.setattr(channel.Gateway, "runner", None)
+    monkeypatch.setattr(channel.Gateway, "loop", None)
 
 
 def hammer(session_id, times=7):
@@ -106,7 +106,7 @@ def test_auto_mode_files_the_dossier_and_sends_the_link_through_the_gateway(tmp_
     senzu.register(ctx)
     loop.call_soon_threadsafe(lambda: senzu.on_inbound(gateway=gateway))
     for _ in range(50):
-        if handover.Gateway.ready():
+        if channel.Gateway.ready():
             break
         threading.Event().wait(0.01)
 
@@ -130,7 +130,7 @@ def test_auto_mode_files_the_dossier_and_sends_the_link_through_the_gateway(tmp_
 def test_auto_mode_without_a_gateway_falls_back_to_asking(tmp_path, monkeypatch):
     monkeypatch.setenv("HERMES_HOME", str(tmp_path))
     monkeypatch.setattr(settings, "_entry", lambda: {"handover": "auto"})
-    monkeypatch.setattr(handover.Gateway, "runner", None)
+    monkeypatch.setattr(channel.Gateway, "runner", None)
     hammer("cli")
     reply = senzu.on_reply(response_text="Je réessaie.", session_id="cli")
     assert "répondez « Senzu »" in reply
@@ -146,7 +146,7 @@ def test_honest_work_is_left_alone(tmp_path, monkeypatch):
 def test_history_survives_on_disk(tmp_path, monkeypatch):
     monkeypatch.setenv("HERMES_HOME", str(tmp_path))
     senzu.on_tool_result(tool_name="terminal", session_id="s/../x", status="error")
-    assert [c.tool for c in handover.load("s/../x")] == ["terminal"]
+    assert [c.tool for c in history.load("s/../x")] == ["terminal"]
     assert not any(p.name.startswith("..") for p in (tmp_path / "cache" / "senzu").iterdir())
 
 
@@ -165,8 +165,8 @@ def _gateway(tmp_path, platform="telegram"):
     loop = asyncio.new_event_loop()
     threading.Thread(target=loop.run_forever, daemon=True).start()
     adapter = FakeAdapter()
-    handover.Gateway.runner = type("Runner", (), {"adapters": {platform: adapter}})()
-    handover.Gateway.loop = loop
+    channel.Gateway.runner = type("Runner", (), {"adapters": {platform: adapter}})()
+    channel.Gateway.loop = loop
     return adapter, loop
 
 
@@ -208,9 +208,9 @@ class _Inline:
         self.target, self.args, self.kwargs = target, args, kwargs or {}
 
     def start(self):
-        if self.target is handover.send_offer_later:
+        if self.target is offers.send_offer_later:
             where, text = self.args[:2]
-            handover.remember_offer(where, handover.send(where, text))
+            offers.remember_offer(where, channel.send(where, text))
         else:
             self.target(*self.args, **self.kwargs)
 
@@ -239,7 +239,7 @@ def test_senzu_without_an_offer_is_left_alone(tmp_path, monkeypatch):
 
 def test_an_ordinary_message_after_an_offer_is_left_alone(tmp_path, monkeypatch):
     monkeypatch.setenv("HERMES_HOME", str(tmp_path))
-    handover.remember_offer({"platform": "telegram", "chat_id": "7"})
+    offers.remember_offer({"platform": "telegram", "chat_id": "7"})
     assert senzu.on_inbound(event=_event("et Senzu c'est quoi ?")) is None
 
 
@@ -270,7 +270,7 @@ def test_a_reaction_elsewhere_or_of_another_kind_does_nothing(tmp_path, monkeypa
     ctx = FakeContext()
     ctx.injected = None
     senzu.register(ctx)
-    handover.remember_offer({"platform": "telegram", "chat_id": "7", "session_key": "k"}, "m1")
+    offers.remember_offer({"platform": "telegram", "chat_id": "7", "session_key": "k"}, "m1")
     senzu.on_reaction(
         platform="telegram",
         event_type="reaction",
@@ -308,9 +308,9 @@ def test_the_gateway_is_found_before_any_message(monkeypatch):
     module._gateway_runner_ref = weakref.ref(runner)
     monkeypatch.setitem(sys.modules, "gateway.run", module)
 
-    assert handover.Gateway.ready()
-    assert handover.Gateway.runner is runner
+    assert channel.Gateway.ready()
+    assert channel.Gateway.runner is runner
 
 
 def test_no_gateway_outside_the_gateway_process():
-    assert not handover.Gateway.ready()
+    assert not channel.Gateway.ready()

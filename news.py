@@ -17,7 +17,7 @@ import threading
 import time
 from typing import Any
 
-from . import access, handover
+from . import access, channel, handover, home
 
 log = logging.getLogger("hermes_plugins.senzu")
 
@@ -32,7 +32,7 @@ _running = False
 
 
 def _state_file():
-    return handover.hermes_home() / "cache" / "senzu" / "news.json"
+    return home.cache_dir() / "news.json"
 
 
 def _load() -> dict:
@@ -93,7 +93,7 @@ def check_once(ctx: Any) -> float:
     for update in news.get("updates") or []:
         text = update.get("text") if isinstance(update, dict) else None
         if text and where:
-            handover.send(where, text)
+            channel.send(where, text)
     state["cursor"] = news.get("cursor")
     # Open Senzu's access while a paid handover is in progress, close it after; tell the owner,
     # and tell the desk where to connect.
@@ -101,7 +101,7 @@ def check_once(ctx: Any) -> float:
     if report is not None:
         state["access_reported"] = "open" if report["etat"] == "ouvert" else "closed"
         if where:
-            handover.send(where, access.owner_message(report))
+            channel.send(where, access.owner_message(report))
         confirm = {"acces": report}
         if state.get("cursor") is not None:
             confirm["depuis"] = state["cursor"]
@@ -116,7 +116,7 @@ def check_once(ctx: Any) -> float:
 def _loop(ctx: Any) -> None:
     while True:
         state = _load()
-        if not state.get("active") or not handover.Gateway.ready():
+        if not state.get("active") or not channel.Gateway.ready():
             # Asleep until a handover is filed or the gateway shows up; a periodic look covers
             # a restart with a series still open.
             _wake.wait(timeout=60)

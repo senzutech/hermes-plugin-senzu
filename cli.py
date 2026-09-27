@@ -11,7 +11,8 @@ import argparse
 from typing import Any
 
 from . import settings
-from .handover import DESK, env
+from .handover import DESK
+from .home import env
 
 DEFAULT_URL = "https://senzu.cr.edouard.cl/mcp"
 KEY = "SENZU_API_KEY"

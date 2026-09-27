@@ -16,7 +16,7 @@ from __future__ import annotations
 import logging
 import threading
 
-from . import cli, guard, handover, news, settings, stuck
+from . import channel, cli, guard, handover, history, news, offers, settings, stuck
 
 log = logging.getLogger("hermes_plugins.senzu")
 
@@ -35,12 +35,12 @@ def on_tool_call(tool_name="", args=None, **_):
 
 def on_tool_result(tool_name="", session_id="", status="", **_):
     # Only the verdict is kept, never the output: it can be large and it can hold secrets.
-    calls = handover.load(session_id)
+    calls = history.load(session_id)
     calls.append(stuck.call_from_hook(tool_name, status))
-    handover.save(session_id, calls)
+    history.save(session_id, calls)
     # A handover filed: from now on the owner hears, in this chat, when Senzu moves on it.
     if "senzu_signaler" in (tool_name or "") and status not in ("error", "blocked"):
-        news.activate(handover.origin(session_id))
+        news.activate(channel.origin(session_id))
 
 
 def on_inbound(event=None, gateway=None, **_):
@@ -48,49 +48,49 @@ def on_inbound(event=None, gateway=None, **_):
     word into the explicit request the model needs. An offer sent after a guardrail halt is not in
     the conversation the model sees, so on its own « Senzu » would mean nothing to it."""
     if gateway is not None:
-        handover.Gateway.capture(gateway)
+        channel.Gateway.capture(gateway)
     source = getattr(event, "source", None)
-    if source is not None and handover.accepts_offer(
+    if source is not None and offers.accepts_offer(
         getattr(event, "text", ""), getattr(source, "platform", ""), getattr(source, "chat_id", "")
     ):
         log.info("senzu: owner accepted the offer")
-        return {"action": "rewrite", "text": handover.HANDOVER_REQUEST}
+        return {"action": "rewrite", "text": offers.HANDOVER_REQUEST}
     return None
 
 
 def on_reply(response_text="", session_id="", **_):
-    calls = handover.load(session_id)
+    calls = history.load(session_id)
     if not calls or not response_text:
         return None
     reading = stuck.read(calls, settings.threshold())
     if not reading.deserves_an_offer:
         return None
     # Offered once: the repetition has to build up again before the owner is asked twice.
-    handover.save(session_id, [])
+    history.save(session_id, [])
     _offered.add(session_id)
-    offer = handover.ask_offer(response_text, reading)
+    offer = offers.ask_offer(response_text, reading)
     automatic = (
         settings.mode() == settings.AUTO
         and _ctx is not None
-        and handover.Gateway.ready()
-        and handover.origin(session_id) is not None
+        and channel.Gateway.ready()
+        and channel.origin(session_id) is not None
     )
     log.info("senzu: %d calls, offer made (%s)", len(calls), "auto" if automatic else "ask")
     if not automatic:
-        where = handover.origin(session_id)
-        if where is None or not handover.Gateway.ready():
+        where = channel.origin(session_id)
+        if where is None or not channel.Gateway.ready():
             return offer  # no gateway (hermes chat): the offer rides on the reply
         # On the gateway the offer follows the reply as its own message. The owner answers with a
         # reaction on it (Telegram) or by typing « Senzu »; on_reaction and on_inbound listen.
         threading.Thread(
-            target=handover.send_offer_later,
-            args=(where, handover.offer_message(reading, react=handover.reacts(where))),
+            target=offers.send_offer_later,
+            args=(where, offers.offer_message(reading, react=offers.reacts(where))),
             name="senzu-offer",
             daemon=True,
         ).start()
         return None
     _pending[session_id] = offer
-    return handover.auto_notice(response_text, reading)
+    return offers.auto_notice(response_text, reading)
 
 
 def on_turn_end(session_id="", conversation_history=None, **_):
@@ -114,17 +114,17 @@ def on_turn_finished(session_id="", turn_exit_reason="", **_):
     _offered.discard(session_id)
     if turn_exit_reason != "guardrail_halt" or already_offered:
         return
-    calls = handover.load(session_id)
+    calls = history.load(session_id)
     if stuck.read(calls).already_asked:
         return
-    where = handover.origin(session_id)
-    if where is None or not handover.Gateway.ready():
+    where = channel.origin(session_id)
+    if where is None or not channel.Gateway.ready():
         return
-    handover.save(session_id, [])
+    history.save(session_id, [])
     log.info("senzu: guardrail halt, offer sent")
     threading.Thread(
-        target=handover.send_offer_later,
-        args=(where, handover.halt_offer(react=handover.reacts(where))),
+        target=offers.send_offer_later,
+        args=(where, offers.halt_offer(react=offers.reacts(where))),
         name="senzu-halt-offer",
         daemon=True,
     ).start()
@@ -135,19 +135,19 @@ def on_reaction(platform="", event_type="", payload=None, **_):
     explicit request a typed « Senzu » becomes."""
     if event_type != "reaction" or not isinstance(payload, dict) or _ctx is None:
         return
-    session_key = handover.accepts_reaction(
+    session_key = offers.accepts_reaction(
         platform, payload.get("chat_id"), payload.get("message_id"), payload.get("emojis") or []
     )
     if session_key is None:
         return
-    queued = _ctx.inject_message(handover.HANDOVER_REQUEST, role="user", session_key=session_key)
+    queued = _ctx.inject_message(offers.HANDOVER_REQUEST, role="user", session_key=session_key)
     log.info("senzu: owner accepted the offer with a reaction (queued=%s)", queued)
 
 
 def register(ctx):
     global _ctx
     _ctx = ctx
-    handover.sweep()
+    history.sweep()
     news.start(ctx)
     ctx.register_hook("pre_tool_call", on_tool_call)
     ctx.register_hook("post_tool_call", on_tool_result)

@@ -5,7 +5,7 @@ import json
 import threading
 
 import pytest
-from senzu import handover, news
+from senzu import channel, home, news
 
 
 class Desk:
@@ -35,9 +35,9 @@ def gateway(tmp_path, monkeypatch):
     threading.Thread(target=loop.run_forever, daemon=True).start()
     adapter = Adapter()
     monkeypatch.setattr(
-        handover.Gateway, "runner", type("R", (), {"adapters": {"telegram": adapter}})()
+        channel.Gateway, "runner", type("R", (), {"adapters": {"telegram": adapter}})()
     )
-    monkeypatch.setattr(handover.Gateway, "loop", loop)
+    monkeypatch.setattr(channel.Gateway, "loop", loop)
     yield adapter
     loop.call_soon_threadsafe(loop.stop)
 
@@ -96,8 +96,8 @@ def test_an_unreadable_answer_is_an_error_not_a_silent_stop(gateway):
 def test_filing_a_handover_starts_the_series(gateway, monkeypatch):
     import senzu
 
-    (handover.hermes_home() / "sessions").mkdir(parents=True)
-    (handover.hermes_home() / "sessions" / "sessions.json").write_text(
+    (home.hermes_home() / "sessions").mkdir(parents=True)
+    (home.hermes_home() / "sessions" / "sessions.json").write_text(
         json.dumps({"k": {"session_id": "s", "origin": {"platform": "telegram", "chat_id": "7"}}})
     )
     senzu.on_tool_result(tool_name="mcp__senzu__senzu_signaler", session_id="s", status="ok")
