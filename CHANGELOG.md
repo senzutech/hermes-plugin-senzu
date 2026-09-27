@@ -6,6 +6,13 @@ All notable changes to this plugin are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `hermes senzu doctor` shows whether Senzu's maintenance access is installed, and open or
+  closed.
+- README: installation steps an agent can follow on its own, maintenance access included, with
+  the owner's explicit agreement.
+
 ## [0.2.0] - 2026-09-27
 
 ### Added

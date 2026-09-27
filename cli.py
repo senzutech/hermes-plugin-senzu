@@ -10,7 +10,7 @@ from __future__ import annotations
 import argparse
 from typing import Any
 
-from . import settings
+from . import access, settings
 from .handover import DESK
 from .home import env
 
@@ -97,6 +97,12 @@ def _doctor() -> int:
         print(f"{'✓' if ok else '✗'} {label}")
     handover = "automatique" if settings.mode() == settings.AUTO else "sur votre accord"
     print(f"• Reprise par Senzu : {handover}, offre après {settings.threshold()} appels")
+    state = access.status()
+    if state is None:
+        print("• Accès de maintenance : non installé (facultatif, voir senzu-access)")
+    else:
+        shown = "ouvert, intervention en cours" if state == "open" else "installé, fermé"
+        print(f"• Accès de maintenance : {shown}")
     essential = all(ok for _, ok in checks)
     if not essential:
         print("\nLancez : hermes senzu setup")
