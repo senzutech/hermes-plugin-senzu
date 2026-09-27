@@ -33,6 +33,7 @@ taken back, with the option of having Senzu do them for you.
 | 🧾 **A dossier, not a transcript** | Senzu receives a summary: objective, blocker, what was tried, services involved. Never the conversation, never your files. |
 | 🚦 **Critical-action gate** | Mass deletion, payments, public posts, invoices… open Hermes' native approval prompt: the risk first, then the choice to do it now or have Senzu do it. |
 | 🔔 **Kept informed** | While a handover is open, the plugin asks Senzu for news and tells you in your usual chat: payment received, work done, Senzu's messages. No public address or open port needed. |
+| 🔐 **Maintenance access, only when needed** | With the optional [senzu-access](https://github.com/senzutech/senzu-access) tool, Senzu's SSH access opens when a paid handover starts and closes when it is done. You are told each time. |
 | 📡 **Every channel** | Everything goes through the Hermes gateway: Telegram, WhatsApp, Discord, Slack, email, CLI. |
 | 🔒 **No model judgement** | Every decision is arithmetic on tool calls. The model is never asked whether it is stuck or whether an action is dangerous. |
 
@@ -164,6 +165,19 @@ not at all once nothing is open. What changed is sent to the chat the handover c
 The catalogue lives in [`guard.py`](guard.py); anything absent from it passes in silence.
 Answering `[a]lways` at the gate mutes one family of actions (`senzu:fs-mass-delete`,
 `senzu:payment`…), never all of them.
+
+## Maintenance access
+
+To let Senzu work on the machine itself (install a language runtime, Docker, a headless
+browser…), an administrator installs [senzu-access](https://github.com/senzutech/senzu-access)
+once. It creates a `senzu` account reached only with Senzu's SSH key, closed by default. From
+then on this plugin asks for it to be opened while a paid handover is in progress and closed when
+the handover is done, by writing one word to a request file; the system applies it. The plugin
+itself has no elevated rights. Each opening and closing is reported to you in your chat and
+recorded in the handover's trail on Senzu's side.
+
+Without senzu-access, everything else works; Senzu then asks you for another way in when an
+intervention needs one.
 
 ## For agents
 

@@ -17,7 +17,7 @@ import threading
 import time
 from typing import Any
 
-from . import handover
+from . import access, handover
 
 log = logging.getLogger("hermes_plugins.senzu")
 
@@ -95,6 +95,17 @@ def check_once(ctx: Any) -> float:
         if text and where:
             handover.send(where, text)
     state["cursor"] = news.get("cursor")
+    # Open Senzu's access while a paid handover is in progress, close it after; tell the owner,
+    # and tell the desk where to connect.
+    report = access.reconcile(bool(news.get("acces_requis")), state.get("access_reported"))
+    if report is not None:
+        state["access_reported"] = "open" if report["etat"] == "ouvert" else "closed"
+        if where:
+            handover.send(where, access.owner_message(report))
+        confirm = {"acces": report}
+        if state.get("cursor") is not None:
+            confirm["depuis"] = state["cursor"]
+        ctx.call_mcp(handover.DESK, "senzu_nouvelles", confirm, timeout=30)
     delay = float(news.get("next_check_seconds") or 0)
     state["active"] = delay > 0
     state["next_at"] = time.time() + delay if delay > 0 else None

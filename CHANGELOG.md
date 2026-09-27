@@ -24,6 +24,10 @@ All notable changes to this plugin are documented here. The format follows
   request before it reaches the model, which otherwise may not know an offer was made.
 - News of open handovers (payment received, validation, Senzu's messages, refunds) relayed to
   the owner's chat, by asking the desk at the pace it sets, only while a handover is open.
+- Maintenance access: where [senzu-access](https://github.com/senzutech/senzu-access) is
+  installed, the plugin asks for Senzu's SSH access to open while a paid handover is in
+  progress and to close when it is done, reports each change to the desk (host, port, host key
+  fingerprint) and tells the owner. The plugin needs no elevated rights.
 - Per-installation settings, `threshold` (default 6) and `handover`, read on every reply;
   changed with `hermes senzu setup` or `hermes config set`.
 - Critical-action gate on Hermes' native approval prompt, with per-family `rule_key`s.

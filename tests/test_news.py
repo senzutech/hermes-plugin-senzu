@@ -103,3 +103,107 @@ def test_filing_a_handover_starts_the_series(gateway, monkeypatch):
     senzu.on_tool_result(tool_name="mcp__senzu__senzu_signaler", session_id="s", status="ok")
     state = news._load()
     assert state["active"] is True and state["where"]["chat_id"] == "7"
+
+
+@pytest.fixture
+def installed_access(tmp_path, monkeypatch):
+    """A stand-in for what senzu-access installs, with the system applying requests at once."""
+    from senzu import access
+
+    state_dir = tmp_path / "senzu-access"
+    state_dir.mkdir()
+    (state_dir / "request").write_text("closed\n")
+    (state_dir / "state").write_text("closed\n")
+    monkeypatch.setattr(access, "STATE_DIR", state_dir)
+    monkeypatch.setattr(
+        access, "host", lambda: {"hostname": "vps", "port": 22, "host_key": "SHA256:x"}
+    )
+    real_request = access.request
+
+    def request_and_apply(wanted):
+        real_request(wanted)
+        (state_dir / "state").write_text(f"{wanted}\n")
+
+    monkeypatch.setattr(access, "request", request_and_apply)
+    return state_dir
+
+
+def test_access_opens_while_a_paid_handover_is_in_progress(gateway, installed_access):
+    news.activate({"platform": "telegram", "chat_id": "7"})
+    desk = Desk(
+        [
+            {
+                "cursor": 5,
+                "open": 1,
+                "acces_requis": True,
+                "next_check_seconds": 120,
+                "updates": [],
+            },
+            {
+                "cursor": 6,
+                "open": 1,
+                "acces_requis": True,
+                "next_check_seconds": 120,
+                "updates": [],
+            },
+            {
+                "cursor": 6,
+                "open": 1,
+                "acces_requis": True,
+                "next_check_seconds": 120,
+                "updates": [],
+            },
+        ]
+    )
+    news.check_once(desk)
+    assert (installed_access / "request").read_text().strip() == "open"
+    assert "🔐" in gateway.sent[0][1]
+    assert desk.calls[1][1]["acces"] == {
+        "etat": "ouvert",
+        "hote": "vps",
+        "port": 22,
+        "empreinte": "SHA256:x",
+    }
+    news.check_once(desk)
+    assert len(gateway.sent) == 1, "reported once, not at every check"
+
+
+def test_access_closes_when_the_handover_is_done(gateway, installed_access):
+    (installed_access / "state").write_text("open\n")
+    news.activate({"platform": "telegram", "chat_id": "7"})
+    desk = Desk(
+        [
+            {"cursor": 9, "open": 0, "acces_requis": False, "next_check_seconds": 0, "updates": []},
+            {"cursor": 9, "open": 0, "acces_requis": False, "next_check_seconds": 0, "updates": []},
+        ]
+    )
+    assert news.check_once(desk) == 0
+    assert (installed_access / "request").read_text().strip() == "closed"
+    assert "🔒" in gateway.sent[0][1]
+
+
+def test_nothing_happens_where_access_was_never_installed(gateway, tmp_path, monkeypatch):
+    from senzu import access
+
+    monkeypatch.setattr(access, "STATE_DIR", tmp_path / "absent")
+    news.activate({"platform": "telegram", "chat_id": "7"})
+    desk = Desk(
+        [{"cursor": 1, "open": 1, "acces_requis": True, "next_check_seconds": 120, "updates": []}]
+    )
+    news.check_once(desk)
+    assert gateway.sent == [] and len(desk.calls) == 1
+
+
+def test_a_request_the_system_has_not_applied_yet_is_reported_later(gateway, tmp_path, monkeypatch):
+    from senzu import access
+
+    state_dir = tmp_path / "slow"
+    state_dir.mkdir()
+    (state_dir / "request").write_text("closed\n")
+    (state_dir / "state").write_text("closed\n")
+    monkeypatch.setattr(access, "STATE_DIR", state_dir)
+    monkeypatch.setattr(access, "APPLY_WAIT_SECONDS", 0)
+    assert access.reconcile(True, None) is None, "not applied yet: nothing to report"
+    assert (state_dir / "request").read_text().strip() == "open"
+    (state_dir / "state").write_text("open\n")  # cron applied it a minute later
+    assert access.reconcile(True, None)["etat"] == "ouvert"
