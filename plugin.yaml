@@ -1,5 +1,5 @@
 name: senzu
-version: "0.2.0"
+version: "0.2.1"
 description: >-
   Hands a stuck assistant over to Senzu, the people who maintain it: a warning before critical
   actions, and a handover offer when the assistant keeps hammering at a problem it cannot solve.

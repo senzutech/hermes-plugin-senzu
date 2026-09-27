@@ -6,6 +6,8 @@ All notable changes to this plugin are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-09-27
+
 ### Added
 
 - `hermes senzu doctor` shows whether Senzu's maintenance access is installed, and open or
@@ -54,6 +56,7 @@ All notable changes to this plugin are documented here. The format follows
 - `hermes senzu setup` to connect the Senzu MCP server and pick the mode, `hermes senzu doctor`
   to check the installation.
 
-[Unreleased]: https://github.com/senzutech/hermes-plugin-senzu/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/senzutech/hermes-plugin-senzu/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/senzutech/hermes-plugin-senzu/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/senzutech/hermes-plugin-senzu/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/senzutech/hermes-plugin-senzu/releases/tag/v0.1.0
