@@ -20,6 +20,7 @@ import json
 import logging
 import os
 import re
+import sys
 import time
 from pathlib import Path
 from typing import Any
@@ -189,11 +190,13 @@ def link_message(dossier: dict, link: str) -> str:
 
 
 class Gateway:
-    """The running gateway and its event loop, captured on the first inbound message.
+    """The running gateway and its event loop.
 
     ``pre_gateway_dispatch`` is the documented way for a plugin to reach
-    ``gateway.adapters[platform].send``; outside the gateway (``hermes chat``) there is none,
-    and the offer stays in the reply.
+    ``gateway.adapters[platform].send``, but it only fires on an inbound message. Until one
+    arrives, the runner is found the way Hermes' own send_message tool finds it, so a gateway
+    restarted with a handover open keeps checking on it. Outside the gateway (``hermes chat``)
+    there is none, and the offer stays in the reply.
     """
 
     runner: Any = None
@@ -210,7 +213,20 @@ class Gateway:
             pass
 
     @classmethod
+    def discover(cls) -> None:
+        # Only look where the gateway already is: importing it into another process would be
+        # heavy and find nothing.
+        module = sys.modules.get("gateway.run")
+        reference = getattr(module, "_gateway_runner_ref", None)
+        runner = reference() if callable(reference) else None
+        loop = getattr(runner, "_gateway_loop", None)
+        if runner is not None and loop is not None:
+            cls.runner, cls.loop = runner, loop
+
+    @classmethod
     def ready(cls) -> bool:
+        if cls.runner is None or cls.loop is None:
+            cls.discover()
         return cls.runner is not None and cls.loop is not None
 
 

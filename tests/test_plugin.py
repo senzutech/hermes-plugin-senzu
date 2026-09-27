@@ -294,3 +294,23 @@ def test_elsewhere_the_offer_follows_as_text_to_answer(tmp_path, monkeypatch):
     assert "répondez « Senzu »" in adapter.sent[0][1]
     assert "réagissez" not in adapter.sent[0][1]
     loop.call_soon_threadsafe(loop.stop)
+
+
+def test_the_gateway_is_found_before_any_message(monkeypatch):
+    """A gateway restarted with a handover open is found without waiting for the owner."""
+    import sys
+    import types
+    import weakref
+
+    runner = type("Runner", (), {})()
+    runner._gateway_loop = object()
+    module = types.ModuleType("gateway.run")
+    module._gateway_runner_ref = weakref.ref(runner)
+    monkeypatch.setitem(sys.modules, "gateway.run", module)
+
+    assert handover.Gateway.ready()
+    assert handover.Gateway.runner is runner
+
+
+def test_no_gateway_outside_the_gateway_process():
+    assert not handover.Gateway.ready()
