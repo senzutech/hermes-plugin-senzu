@@ -182,6 +182,41 @@ intervention needs one.
 
 ## For agents
 
+### Installing this plugin for your owner
+
+When your owner asks you to install Senzu, do it yourself with your terminal tool, step by step,
+and stop at the first step that fails to tell them what it printed.
+
+1. Get the installation key from your owner (Senzu gives it to them, it starts with `szk_live_`). Never
+   invent one, never write it anywhere but the command below, never repeat it in the chat.
+2. Install and connect:
+
+   ```bash
+   hermes plugins install senzutech/hermes-plugin-senzu --ref v0.2.0 --enable
+   hermes senzu setup --key <key>
+   ```
+
+   If the plugin is already installed, add `--force` to the first command.
+3. The gateway you are running in must restart to load the plugin, and you cannot restart it
+   from inside a conversation. Ask your owner to type `/restart`, then wait for their next
+   message.
+4. After the restart, run `hermes senzu doctor` and show your owner its output. Every line
+   should start with ✓.
+5. Optional, Senzu's maintenance access. It needs root, which you do not have: give your owner
+   (or their administrator) these commands to run themselves, and do not try to run them:
+
+   ```bash
+   curl -fsSLO https://github.com/senzutech/senzu-access/releases/latest/download/senzu-access-setup.sh
+   curl -fsSLO https://github.com/senzutech/senzu-access/releases/latest/download/senzu-access-setup.sh.sha256
+   sha256sum -c senzu-access-setup.sh.sha256
+   sudo bash senzu-access-setup.sh
+   ```
+
+Then tell your owner, in one or two sentences, that Senzu is ready: when you get stuck, you
+will offer to hand the problem over, and nothing is sent without their agreement.
+
+### Settings
+
 These settings are the owner's business, changed from the command line. If the owner explicitly
 asks you to change them, run `hermes senzu setup --threshold <n>` or
 `hermes senzu setup --handover ask|auto` (only what you pass changes; no restart needed) and say
