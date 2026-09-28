@@ -6,6 +6,13 @@ All notable changes to this plugin are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Handover when the owner has had enough: the installation's own model reads each message the
+  owner writes for irritation or discouragement aimed at the assistant (one short structured
+  call, on the owner's tokens). Two in a row within two hours, and the offer follows the next
+  reply. Setting `mood` (`on` by default), `hermes senzu setup --mood on|off`, shown by `doctor`.
+
 ## [0.2.1] - 2026-09-27
 
 ### Added

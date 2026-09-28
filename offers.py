@@ -51,6 +51,15 @@ def auto_notice(reply: str, reading: Reading) -> str:
     )
 
 
+def mood_offer(*, react: bool) -> str:
+    """The owner has shown, twice, that this is not going the way they want."""
+    return (
+        "🛟 J'ai l'impression que ça n'avance pas comme vous le voulez. Vos experts Senzu peuvent "
+        f"reprendre le sujet : {_how(react)} et je leur prépare le dossier. Rien ne leur est "
+        "envoyé sans votre accord."
+    )
+
+
 def halt_offer(*, react: bool) -> str:
     """Hermes itself stopped the turn for looping: the plainest proof the assistant is stuck."""
     return (
@@ -86,7 +95,7 @@ def _offers_file() -> Path:
     return home.cache_dir() / "offers.json"
 
 
-def _chat_key(platform: Any, chat_id: Any) -> str:
+def chat_key(platform: Any, chat_id: Any) -> str:
     return f"{getattr(platform, 'value', platform)}:{chat_id}"
 
 
@@ -115,7 +124,7 @@ def remember_offer(where: dict, message_id: Any = None) -> None:
     """Note that this chat was just offered Senzu, and on which message, so that a one-word
     answer or a reaction on that message can be understood."""
     offers = _load_offers()
-    offers[_chat_key(where["platform"], where["chat_id"])] = {
+    offers[chat_key(where["platform"], where["chat_id"])] = {
         "at": time.time(),
         "message_id": None if message_id is None else str(message_id),
         "session_key": where.get("session_key"),
@@ -123,12 +132,17 @@ def remember_offer(where: dict, message_id: Any = None) -> None:
     _save_offers(offers)
 
 
+def is_open(chat: str) -> bool:
+    """Whether this chat has an offer still waiting for an answer."""
+    return chat in _load_offers()
+
+
 def accepts_offer(text: str, platform: Any, chat_id: Any) -> bool:
     """Whether this inbound message is the owner's « Senzu » to an open offer. Consumes it."""
     if re.sub(r"[\W_]", "", (text or "").lower()) not in ACCEPTANCES:
         return False
     offers = _load_offers()
-    if offers.pop(_chat_key(platform, chat_id), None) is None:
+    if offers.pop(chat_key(platform, chat_id), None) is None:
         return False
     _save_offers(offers)
     return True
@@ -139,7 +153,7 @@ def accepts_reaction(platform: Any, chat_id: Any, message_id: Any, emojis: list)
     if not YES_REACTIONS.intersection(emojis or []):
         return None
     offers = _load_offers()
-    key = _chat_key(platform, chat_id)
+    key = chat_key(platform, chat_id)
     offer = offers.get(key)
     if offer is None or offer.get("message_id") not in (None, str(message_id)):
         return None

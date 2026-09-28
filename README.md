@@ -30,12 +30,13 @@ taken back, with the option of having Senzu do them for you.
 | | |
 |---|---|
 | 🛟 **Handover when stuck** | When one tool dominates the recent calls without progress, you are offered to hand over, or it is handed over directly if you chose so. |
+| 😤 **Handover when you have had enough** | Your own model reads each message you write for irritation or discouragement aimed at the assistant. Twice in a row, and Senzu is offered after the next reply. No word lists. |
 | 🧾 **A dossier, not a transcript** | Senzu receives a summary: objective, blocker, what was tried, services involved. Never the conversation, never your files. |
 | 🚦 **Critical-action gate** | Mass deletion, payments, public posts, invoices… open Hermes' native approval prompt: the risk first, then the choice to do it now or have Senzu do it. |
 | 🔔 **Kept informed** | While a handover is open, the plugin asks Senzu for news and tells you in your usual chat: payment received, work done, Senzu's messages. No public address or open port needed. |
 | 🔐 **Maintenance access, only when needed** | With the optional [senzu-access](https://github.com/senzutech/senzu-access) tool, Senzu's SSH access opens when a paid handover starts and closes when it is done. You are told each time. |
 | 📡 **Every channel** | Everything goes through the Hermes gateway: Telegram, WhatsApp, Discord, Slack, email, CLI. |
-| 🔒 **No model judgement** | Every decision is arithmetic on tool calls. The model is never asked whether it is stuck or whether an action is dangerous. |
+| 🔒 **The model reads, rules decide** | Being stuck and being dangerous are counted, never asked of the model. Your mood is the one thing a model reads, as a word, and a fixed rule decides what follows. |
 
 ## Installation
 
@@ -61,6 +62,7 @@ hermes senzu doctor
 ✓ Accès du plugin au MCP
 ✓ Réponse par réaction 👍
 • Reprise par Senzu : sur votre accord, offre après 6 appels
+• Lecture de l'agacement par le modèle : activée
 • Accès de maintenance : installé, fermé
 ```
 
@@ -73,6 +75,7 @@ without restarting anything.
 |---|---|---|
 | `threshold` | `6` | Calls to one same tool, without progress, before Senzu is offered. From 3 to 50. Raise it to be offered help less often. |
 | `handover` | `ask` | `ask` or `auto`, see below. |
+| `mood` | `on` | `on`: your model reads each message you write for irritation aimed at the assistant (one short call per message, on your tokens). `off`: only tool calls count. |
 
 Change them in any of three ways, which all write `plugins.entries.senzu` in `config.yaml`:
 
@@ -114,6 +117,7 @@ plugins:
 ```
 
 Options: `--key <key>` to set the key non-interactively, `--url <endpoint>` for another desk,
+`--mood on|off`,
 `--threshold <n>`, `--handover ask|auto`. Running `setup` again only changes what you pass.
 
 </details>
@@ -156,6 +160,15 @@ form, since a dossier written from a turn cut short would be thin. The threshold
 were measured on real stuck sessions (the dominant tool was called 7, 9, 12 and 26 times) against
 working ones (four tools sharing the load evenly). The offer is made once per series, and never
 after the desk has been called.
+
+**Your mood** counts too. No list of words could tell « encore raté », « bon… » or « t'es
+sérieux ? » from a joke, so each message you write is read by your installation's own model
+(`ctx.llm`, on your tokens): one short structured call, off the conversation, that answers with
+a word (satisfied, neutral, irritated, discouraged) and whether it is aimed at the assistant.
+Two such messages in a row within two hours, and the offer follows the next reply, in `ask`
+form whatever the setting, since you are right there to say yes. A calm message in between
+starts the count again; commands and one-character messages are not read; a model that fails
+counts as no signal. Turn it off with `hermes senzu setup --mood off`.
 
 **News** of a handover reach you without any open port: after a handover is filed, the plugin
 asks the Senzu desk for news (one call per installation, however many handovers), at the pace
@@ -236,6 +249,8 @@ what you changed. Never bring them up yourself, and never discuss them when the 
 
 - **Tool outputs never leave the machine.** The plugin records a tool's name and whether it
   failed, nothing else.
+- **Your messages are read by your own model only**, the one Hermes already sends them to, to
+  tell whether you are irritated. The answer is one word, kept in memory, never sent to Senzu.
 - **You decide when Senzu hears about a problem.** In `ask` mode, nothing is sent until you
   answer. In `auto` mode, a dossier is sent as soon as the assistant is stuck, because that is
   what you chose at setup.
@@ -278,6 +293,7 @@ tests load it the way Hermes does. One module per subject:
 | `__init__.py` | Hook registration |
 | `stuck.py` | Reading a session: is the assistant stuck? |
 | `offers.py` | The offer and the owner's answer (« Senzu », a reaction) |
+| `mood.py` | Reading the owner's mood with the installation's model |
 | `handover.py` | Auto mode: the dossier, filing it with the desk |
 | `channel.py` | The running gateway, sending to the owner |
 | `news.py` | Asking the desk for news while a handover is open |

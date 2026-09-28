@@ -1,12 +1,14 @@
 """Senzu for Hermes Agent: call in your maintenance provider when the assistant cannot cope.
 
-Two things, both decided by arithmetic and never by the model:
+Three things, all decided by rules the model cannot talk its way around:
 
 * before a critical action (mass deletion, payment, public post…), Hermes' approval gate opens
   with the risk first, then the option of having Senzu do it;
 * when the assistant keeps hammering at a problem it cannot solve, or when Hermes' own loop
   guardrail stops it, the owner is offered to hand it over to Senzu, or it is handed over
-  directly if that is what the owner chose at setup.
+  directly if that is what the owner chose at setup;
+* when the owner shows, twice in a row, that they have had enough, the offer follows the next
+  reply. Reading that takes a model: the installation's own, on each message, see ``mood``.
 
 See README.md for installation.
 """
@@ -16,7 +18,7 @@ from __future__ import annotations
 import logging
 import threading
 
-from . import channel, cli, guard, handover, history, news, offers, settings, stuck
+from . import channel, cli, guard, handover, history, mood, news, offers, settings, stuck
 
 log = logging.getLogger("hermes_plugins.senzu")
 
@@ -46,28 +48,40 @@ def on_tool_result(tool_name="", session_id="", status="", **_):
 def on_inbound(event=None, gateway=None, **_):
     """Remember how to reach the owner; and when they answer « Senzu » to an open offer, turn the
     word into the explicit request the model needs. An offer sent after a guardrail halt is not in
-    the conversation the model sees, so on its own « Senzu » would mean nothing to it."""
+    the conversation the model sees, so on its own « Senzu » would mean nothing to it. Any other
+    message is read for the owner's mood, off the loop."""
     if gateway is not None:
         channel.Gateway.capture(gateway)
     source = getattr(event, "source", None)
-    if source is not None and offers.accepts_offer(
-        getattr(event, "text", ""), getattr(source, "platform", ""), getattr(source, "chat_id", "")
-    ):
+    if source is None:
+        return None
+    text = getattr(event, "text", "") or ""
+    platform, chat_id = getattr(source, "platform", ""), getattr(source, "chat_id", "")
+    if offers.accepts_offer(text, platform, chat_id):
         log.info("senzu: owner accepted the offer")
         return {"action": "rewrite", "text": offers.HANDOVER_REQUEST}
+    if _ctx is not None and settings.mood():
+        threading.Thread(
+            target=mood.observe,
+            args=(_ctx, offers.chat_key(platform, chat_id), text),
+            name="senzu-mood",
+            daemon=True,
+        ).start()
     return None
 
 
 def on_reply(response_text="", session_id="", **_):
-    calls = history.load(session_id)
-    if not calls or not response_text:
+    if not response_text:
         return None
+    calls = history.load(session_id)
     reading = stuck.read(calls, settings.threshold())
-    if not reading.deserves_an_offer:
+    if not calls or not reading.deserves_an_offer:
+        _offer_for_mood(session_id, reading)
         return None
     # Offered once: the repetition has to build up again before the owner is asked twice.
     history.save(session_id, [])
     _offered.add(session_id)
+    _forget_mood(session_id)
     offer = offers.ask_offer(response_text, reading)
     automatic = (
         settings.mode() == settings.AUTO
@@ -91,6 +105,31 @@ def on_reply(response_text="", session_id="", **_):
         return None
     _pending[session_id] = offer
     return offers.auto_notice(response_text, reading)
+
+
+def _forget_mood(session_id: str) -> None:
+    where = channel.origin(session_id)
+    if where is not None:
+        mood.forget(offers.chat_key(where["platform"], where["chat_id"]))
+
+
+def _offer_for_mood(session_id: str, reading: stuck.Reading) -> None:
+    """The owner has shown they have had enough: the offer follows this reply, in ask mode
+    whatever the setting, since the owner is right there to say yes."""
+    where = channel.origin(session_id)
+    if where is None or not channel.Gateway.ready():
+        return
+    chat = offers.chat_key(where["platform"], where["chat_id"])
+    if not mood.due(chat) or offers.is_open(chat) or reading.already_asked:
+        return
+    _offered.add(session_id)
+    log.info("senzu: owner dissatisfied, offer sent")
+    threading.Thread(
+        target=offers.send_offer_later,
+        args=(where, offers.mood_offer(react=offers.reacts(where))),
+        name="senzu-mood-offer",
+        daemon=True,
+    ).start()
 
 
 def on_turn_end(session_id="", conversation_history=None, **_):
@@ -121,6 +160,7 @@ def on_turn_finished(session_id="", turn_exit_reason="", **_):
     if where is None or not channel.Gateway.ready():
         return
     history.save(session_id, [])
+    _forget_mood(session_id)
     log.info("senzu: guardrail halt, offer sent")
     threading.Thread(
         target=offers.send_offer_later,

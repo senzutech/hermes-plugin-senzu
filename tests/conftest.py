@@ -11,3 +11,6 @@ spec = importlib.util.spec_from_file_location(
 module = importlib.util.module_from_spec(spec)
 sys.modules["senzu"] = module
 spec.loader.exec_module(module)
+
+# Shared stand-ins (fakes.py) are imported by name from the tests.
+sys.path.insert(0, str(Path(__file__).resolve().parent))

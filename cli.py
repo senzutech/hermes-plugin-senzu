@@ -34,6 +34,12 @@ def setup_parser(parser: argparse.ArgumentParser) -> None:
         help="ask: offer and wait for the owner's « Senzu » (default); "
         "auto: send the dossier to Senzu as soon as the assistant is stuck",
     )
+    setup.add_argument(
+        "--mood",
+        choices=("on", "off"),
+        help="on: the installation's model reads the owner's messages for dissatisfaction and "
+        "offers Senzu when it builds up (default); off: only repeated tool calls count",
+    )
     commands.add_parser("doctor", help="Check that everything Senzu needs is in place")
 
 
@@ -67,7 +73,7 @@ def _setup(args: argparse.Namespace) -> int:
     ):
         set_config_value(key, value, force=True)
     try:
-        chosen = settings.change(args.threshold, args.handover)
+        chosen = settings.change(args.threshold, args.handover, args.mood)
     except ValueError as error:
         print(f"✗ {error}")
         return 1
@@ -97,6 +103,8 @@ def _doctor() -> int:
         print(f"{'✓' if ok else '✗'} {label}")
     handover = "automatique" if settings.mode() == settings.AUTO else "sur votre accord"
     print(f"• Reprise par Senzu : {handover}, offre après {settings.threshold()} appels")
+    listening = "activée" if settings.mood() else "désactivée"
+    print(f"• Lecture de l'agacement par le modèle : {listening}")
     state = access.status()
     if state is None:
         print("• Accès de maintenance : non installé (facultatif, voir senzu-access)")

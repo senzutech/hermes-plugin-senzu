@@ -6,50 +6,8 @@ import threading
 
 import pytest
 import senzu
+from fakes import FakeAdapter, FakeContext, _event, _gateway, _Inline
 from senzu import channel, handover, history, offers, settings
-
-
-class FakeContext:
-    def __init__(self, link="https://desk.example/accepter/0b2c-token"):
-        self.hooks, self.commands, self.filed = {}, {}, []
-        self.link = link
-        self.llm = self
-
-    def register_hook(self, name, callback):
-        self.hooks[name] = callback
-
-    def register_cli_command(self, name, **kwargs):
-        self.commands[name] = kwargs
-
-    def register_tool(self, name, **kwargs):
-        self.commands[f"tool:{name}"] = kwargs
-
-    def complete_structured(self, **_):
-        dossier = {
-            "objectif": "installer ClickUp",
-            "blocage": "OAuth impossible sans navigateur",
-            "tentatives": ["login"],
-            "urgence": "genant",
-            "climat": "agace",
-        }
-        return type("Result", (), {"parsed": dossier, "text": ""})()
-
-    def inject_message(self, content, role="user", session_key=None):
-        self.injected = (content, role, session_key)
-        return True
-
-    def call_mcp(self, server, tool, arguments, timeout=30):
-        self.filed.append((server, tool, arguments))
-        return {"ok": True, "result": f"Signalement reçu. Page de validation : {self.link}"}
-
-
-class FakeAdapter:
-    def __init__(self):
-        self.sent = []
-
-    async def send(self, chat_id, content, metadata=None):
-        self.sent.append((chat_id, content))
-        return type("SendResult", (), {"message_id": f"m{len(self.sent)}"})()
 
 
 @pytest.fixture(autouse=True)
@@ -157,19 +115,6 @@ def test_critical_calls_go_to_the_gate():
     assert senzu.on_tool_call(tool_name="read_file", args={"path": "a"}) is None
 
 
-def _gateway(tmp_path, platform="telegram"):
-    (tmp_path / "sessions").mkdir(exist_ok=True)
-    (tmp_path / "sessions" / "sessions.json").write_text(
-        json.dumps({"k": {"session_id": "h", "origin": {"platform": platform, "chat_id": "7"}}})
-    )
-    loop = asyncio.new_event_loop()
-    threading.Thread(target=loop.run_forever, daemon=True).start()
-    adapter = FakeAdapter()
-    channel.Gateway.runner = type("Runner", (), {"adapters": {platform: adapter}})()
-    channel.Gateway.loop = loop
-    return adapter, loop
-
-
 def test_a_guardrail_halt_sends_the_offer_through_the_gateway(tmp_path, monkeypatch):
     monkeypatch.setenv("HERMES_HOME", str(tmp_path))
     adapter, loop = _gateway(tmp_path)
@@ -199,25 +144,6 @@ def test_an_ordinary_turn_end_sends_nothing(tmp_path, monkeypatch):
     senzu.on_turn_finished(session_id="h", turn_exit_reason="text_response")
     assert adapter.sent == []
     loop.call_soon_threadsafe(loop.stop)
-
-
-class _Inline:
-    """Runs the thread's target at once, without the delay, so the test sees the send."""
-
-    def __init__(self, target, args=(), kwargs=None, **_):
-        self.target, self.args, self.kwargs = target, args, kwargs or {}
-
-    def start(self):
-        if self.target is offers.send_offer_later:
-            where, text = self.args[:2]
-            offers.remember_offer(where, channel.send(where, text))
-        else:
-            self.target(*self.args, **self.kwargs)
-
-
-def _event(text, platform="telegram", chat_id="7"):
-    source = type("Source", (), {"platform": platform, "chat_id": chat_id})()
-    return type("Event", (), {"text": text, "source": source})()
 
 
 def test_the_owners_senzu_after_a_halt_becomes_an_explicit_request(tmp_path, monkeypatch):

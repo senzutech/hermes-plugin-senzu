@@ -14,6 +14,7 @@ from typing import Any
 from .stuck import HAMMERING
 
 ASK, AUTO = "ask", "auto"
+ON, OFF = "on", "off"
 # Below three, ordinary work would trigger it; above fifty, it would never fire within the
 # forty calls the reading looks at... except that the share rule still applies, so the cap is
 # where the setting stops meaning anything.
@@ -45,11 +46,19 @@ def threshold() -> int:
     return value if low <= value <= high else HAMMERING
 
 
+def mood() -> bool:
+    """Whether the owner's messages are read for dissatisfaction. On unless turned off: it is one
+    short call on the installation's own model per message the owner writes."""
+    return _entry().get("mood", ON) != OFF
+
+
 def current() -> dict[str, Any]:
-    return {"threshold": threshold(), "handover": mode()}
+    return {"threshold": threshold(), "handover": mode(), "mood": ON if mood() else OFF}
 
 
-def change(threshold: int | None = None, handover: str | None = None) -> dict[str, Any]:
+def change(
+    threshold: int | None = None, handover: str | None = None, mood: str | None = None
+) -> dict[str, Any]:
     """Write what was given, leave the rest as it is, and return the settings now in force."""
     from hermes_cli.config import set_config_value
 
@@ -62,4 +71,8 @@ def change(threshold: int | None = None, handover: str | None = None) -> dict[st
         if handover not in (ASK, AUTO):
             raise ValueError("handover must be 'ask' or 'auto'")
         set_config_value("plugins.entries.senzu.handover", handover, force=True)
+    if mood is not None:
+        if mood not in (ON, OFF):
+            raise ValueError("mood must be 'on' or 'off'")
+        set_config_value("plugins.entries.senzu.mood", mood, force=True)
     return current()

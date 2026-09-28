@@ -29,11 +29,11 @@ def config(monkeypatch):
 
 
 def test_defaults_without_any_config(config):
-    assert settings.current() == {"threshold": 6, "handover": "ask"}
+    assert settings.current() == {"threshold": 6, "handover": "ask", "mood": "on"}
 
 
 def test_change_writes_only_what_it_is_given(config):
-    assert settings.change(threshold=12) == {"threshold": 12, "handover": "ask"}
+    assert settings.change(threshold=12) == {"threshold": 12, "handover": "ask", "mood": "on"}
     assert settings.change(handover="auto")["threshold"] == 12
 
 
