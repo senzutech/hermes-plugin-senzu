@@ -13,6 +13,11 @@ All notable changes to this plugin are documented here. The format follows
   call, on the owner's tokens). Two in a row within two hours, and the offer follows the next
   reply. Setting `mood` (`on` by default), `hermes senzu setup --mood on|off`, shown by `doctor`.
 
+### Changed
+
+- When the owner accepts an offer, the assistant first shows what it is about to send and asks
+  whether to add anything, then files the handover with the owner's own words in it.
+
 ## [0.2.1] - 2026-09-27
 
 ### Added

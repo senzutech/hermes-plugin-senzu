@@ -90,7 +90,7 @@ The defaults suit most installations; there is nothing to configure to get start
 
 | `hermes senzu setup --handover …` | When the assistant is stuck |
 |---|---|
-| `ask` (default) | The offer follows the reply. Answer with a 👍 (or ✅, ❤️) on it on Telegram, or type « Senzu » anywhere. Nothing is sent to Senzu until you do; the plugin turns your answer into an explicit request, and the assistant files the handover itself. |
+| `ask` (default) | The offer follows the reply. Answer with a 👍 (or ✅, ❤️) on it on Telegram, or type « Senzu » anywhere. Nothing is sent to Senzu until you do. The assistant then shows you, in three lines, what it is about to send, and asks whether you want to add anything (what you want, what you tried): you have the last word, and your own words go into the dossier. |
 | `auto` | You decided once that Senzu may step in. The plugin writes the dossier with your assistant's model, files it, and sends you the link to approve the work. Nothing is done before you click. |
 
 <details>

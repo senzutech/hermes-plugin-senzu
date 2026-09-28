@@ -84,10 +84,17 @@ def link_message(dossier: dict, link: str) -> str:
 # How long an offer stays open for a one-word « Senzu ».
 OFFER_VALIDITY = 24 * 3600
 ACCEPTANCES = {"senzu", "ouisenzu", "oksenzu", "gosenzu", "vasysenzu"}
+# What the owner's yes becomes. The owner has the last word on what is sent: the model first
+# shows what it understood and asks for anything to add, and only files after the answer, with
+# the owner's own words in it.
 HANDOVER_REQUEST = (
-    "Oui, je veux que Senzu prenne le relais. Appelle l'outil senzu_signaler (serveur MCP senzu) "
-    "avec un résumé de ce sur quoi tu bloques : l'objectif, le blocage, ce qui a déjà été essayé "
-    "et les services concernés. Puis transmets-moi le lien qu'il renvoie."
+    "Oui, je veux que Senzu prenne le relais. Avant d'envoyer quoi que ce soit, résume-moi en "
+    "trois lignes courtes ce que tu vas leur transmettre : ce que je cherche à obtenir, ce qui "
+    "bloque, ce qui a déjà été essayé. Puis demande-moi si je veux ajouter une précision (une "
+    "phrase, ce que j'ai tenté de mon côté) et attends ma réponse, sans appeler "
+    "d'outil. Quand j'ai répondu, précision ou simple « non », appelle l'outil senzu_signaler "
+    "(serveur MCP senzu) avec ce résumé corrigé de ma précision, en mettant mes propres mots "
+    "dans `extrait`, puis transmets-moi le lien qu'il renvoie."
 )
 
 
