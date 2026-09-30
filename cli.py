@@ -107,7 +107,10 @@ def _doctor() -> int:
     print(f"• Lecture de l'agacement par le modèle : {listening}")
     state = access.status()
     if state is None:
-        print("• Accès de maintenance : non installé (facultatif, voir senzu-access)")
+        print(
+            "⚠ Accès de maintenance : non installé. Fortement recommandé : sans lui, les "
+            "techniciens Senzu ne peuvent pas intervenir sur cette machine (voir senzu-access)."
+        )
     else:
         shown = "ouvert, intervention en cours" if state == "open" else "installé, fermé"
         print(f"• Accès de maintenance : {shown}")

@@ -6,6 +6,12 @@ All notable changes to this plugin are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- senzu-access is presented as strongly recommended, not optional: without it Senzu's
+  technicians cannot work on the machine. The agent's installation steps say not to skip it,
+  and `hermes senzu doctor` warns when it is missing.
+
 ### Added
 
 - Handover when the owner has had enough: the installation's own model reads each message the
