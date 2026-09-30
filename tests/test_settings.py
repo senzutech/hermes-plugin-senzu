@@ -52,8 +52,12 @@ def test_a_higher_threshold_takes_effect_on_the_next_reply(config, tmp_path, mon
     monkeypatch.setenv("HERMES_HOME", str(tmp_path))
     settings.change(threshold=10)
     for _ in range(7):
-        senzu.on_tool_result(tool_name="terminal", session_id="s", status="ok")
+        senzu.on_tool_result(
+            tool_name="terminal", session_id="s", status="ok", args={"command": "npm i"}
+        )
     assert senzu.on_reply(response_text="Je réessaie.", session_id="s") is None
     for _ in range(3):
-        senzu.on_tool_result(tool_name="terminal", session_id="s", status="ok")
+        senzu.on_tool_result(
+            tool_name="terminal", session_id="s", status="ok", args={"command": "npm i"}
+        )
     assert "10 fois" in senzu.on_reply(response_text="Je réessaie.", session_id="s")

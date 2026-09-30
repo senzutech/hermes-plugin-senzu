@@ -100,3 +100,19 @@ def test_the_model_sees_the_owners_previous_messages(owner):
     senzu.on_inbound(event=_event("alors ?"))
     assert ctx.read == ["installe ClickUp", "alors ?"]
     assert channel.Gateway.ready()
+
+
+def test_varied_attempts_that_do_not_work_and_an_irritated_owner_bring_the_offer(owner):
+    """The calibration case: many different terminal commands, still not installed, and an owner
+    who says so. The calls alone no longer speak; the owner does."""
+    ctx, adapter = owner
+    for i in range(26):
+        senzu.on_tool_result(
+            tool_name="terminal", session_id="h", status="ok", args={"command": f"essai {i}"}
+        )
+    senzu.on_inbound(event=_event("ça marche encore pas"))
+    senzu.on_reply(response_text="Je réessaie autrement.", session_id="h")
+    senzu.on_inbound(event=_event("encore raté"))
+    senzu.on_reply(response_text="Encore une piste.", session_id="h")
+    assert len(adapter.sent) == 1
+    assert "ça n'avance pas comme vous le voulez" in adapter.sent[0][1]

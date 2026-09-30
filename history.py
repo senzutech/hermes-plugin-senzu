@@ -32,7 +32,10 @@ def load(session_id: str) -> list[Call]:
 
 def save(session_id: str, calls: list[Call]) -> None:
     path = _file(session_id)
-    rows = [{"tool": call.tool, "failed": call.failed} for call in calls[-HAMMER_WINDOW:]]
+    rows = [
+        {"tool": call.tool, "failed": call.failed, "sig": call.signature, "ro": call.read_only}
+        for call in calls[-HAMMER_WINDOW:]
+    ]
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         temporary = path.with_suffix(".tmp")

@@ -73,7 +73,8 @@ without restarting anything.
 
 | Setting | Default | Meaning |
 |---|---|---|
-| `threshold` | `6` | Calls to one same tool, without progress, before Senzu is offered. From 3 to 50. Raise it to be offered help less often. |
+| `threshold` | `6` | Identical calls (same tool, same arguments) before Senzu is offered. From 3 to 50. Raise it to be offered help less often. |
+| `read_only_tools` | none | This installation's own reading tools (an ERP query, a CRM lookup), never counted as a loop: `hermes config set plugins.entries.senzu.read_only_tools '["sage_query"]'` |
 | `handover` | `ask` | `ask` or `auto`, see below. |
 | `mood` | `on` | `on`: your model reads each message you write for irritation aimed at the assistant (one short call per message, on your tokens). `off`: only tool calls count. |
 
@@ -126,7 +127,7 @@ Options: `--key <key>` to set the key non-interactively, `--url <endpoint>` for 
 <summary>Pinning a version</summary>
 
 ```bash
-hermes plugins install senzutech/hermes-plugin-senzu --ref v0.2.1 --enable
+hermes plugins install senzutech/hermes-plugin-senzu --ref v0.2.2 --enable
 ```
 
 Releases are listed on the [releases page](https://github.com/senzutech/hermes-plugin-senzu/releases).
@@ -152,14 +153,16 @@ To update: `hermes plugins install senzutech/hermes-plugin-senzu --force --enabl
             └─► you answer ─► senzu_signaler           through the gateway ─► you approve
 ```
 
-**"Stuck"** means one tool called at least `threshold` times (6 by default) *and* making up at
-least two fifths of the last 40 calls, or two failures among the last 8 calls with the last one
-failing. It also means **Hermes' own loop guardrail halted the turn** (on a gateway, Hermes stops
-five identical calls in a row): the offer then follows Hermes' halt message, always in `ask`
-form, since a dossier written from a turn cut short would be thin. The thresholds
-were measured on real stuck sessions (the dominant tool was called 7, 9, 12 and 26 times) against
-working ones (four tools sharing the load evenly). The offer is made once per series, and never
-after the desk has been called.
+**"Stuck"** means the very same call (one tool, identical arguments) at least `threshold` times
+(6 by default) *and* making up at least two fifths of the last 40 calls that change something, or
+two failures among the last 8 calls with the last one failing. It also means **Hermes' own loop
+guardrail halted the turn**: the offer then follows Hermes' halt message, always in `ask` form.
+What never counts: tools that only read or search (`web_search`, `web_extract`, `read_file`,
+`search_files`, MCP tools declared read-only, anything named `list_…`, `get_…`, `search…`, plus
+the installation's own `read_only_tools`), and many calls to one tool with different arguments,
+which is what research looks like. A turn that ends on a substantial answer is never
+interrupted, and scheduled jobs (cron) and webhooks are never offered anything: nobody is there
+to say yes. The offer is made once per series, and never after the desk has been called.
 
 **Your mood** counts too. No list of words could tell « encore raté », « bon… » or « t'es
 sérieux ? » from a joke, so each message you write is read by your installation's own model
@@ -208,7 +211,7 @@ and stop at the first step that fails to tell them what it printed.
 2. Install and connect:
 
    ```bash
-   hermes plugins install senzutech/hermes-plugin-senzu --ref v0.2.1 --enable
+   hermes plugins install senzutech/hermes-plugin-senzu --ref v0.2.2 --enable
    hermes senzu setup --key <key>
    ```
 

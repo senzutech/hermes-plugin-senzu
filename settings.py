@@ -52,6 +52,15 @@ def mood() -> bool:
     return _entry().get("mood", ON) != OFF
 
 
+def read_only_tools() -> tuple[str, ...]:
+    """Tools this installation adds to those that only read or search (an ERP query, a CRM
+    lookup…), so calling them many times is never read as a loop."""
+    listed = _entry().get("read_only_tools") or []
+    if isinstance(listed, str):
+        listed = listed.split(",")
+    return tuple(str(tool).strip() for tool in listed if str(tool).strip())
+
+
 def current() -> dict[str, Any]:
     return {"threshold": threshold(), "handover": mode(), "mood": ON if mood() else OFF}
 

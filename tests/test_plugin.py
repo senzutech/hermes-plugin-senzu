@@ -19,7 +19,9 @@ def no_gateway(monkeypatch):
 
 def hammer(session_id, times=7):
     for _ in range(times):
-        senzu.on_tool_result(tool_name="terminal", session_id=session_id, status="ok")
+        senzu.on_tool_result(
+            tool_name="terminal", session_id=session_id, status="ok", args={"command": "npm i"}
+        )
 
 
 def test_register_wires_every_hook_and_the_command(tmp_path, monkeypatch):
@@ -240,3 +242,51 @@ def test_the_gateway_is_found_before_any_message(monkeypatch):
 
 def test_no_gateway_outside_the_gateway_process():
     assert not channel.Gateway.ready()
+
+
+# --- Production, 30/09: offers made to scheduled jobs that were working --------------------------
+
+
+def test_a_scheduled_job_is_never_offered_anything(tmp_path, monkeypatch):
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    monkeypatch.setattr(settings, "_entry", lambda: {})
+    hammer("cron_veille_20260930_040000", times=9)
+    reply = senzu.on_reply(
+        response_text="Rapport de veille.",
+        session_id="cron_veille_20260930_040000",
+        platform="cron",
+    )
+    assert reply is None
+    assert history.load("cron_veille_20260930_040000") == [], "nothing left to weigh later"
+    hammer("s2", times=9)
+    assert senzu.on_reply(response_text="Rapport.", session_id="s2", platform="cron") is None
+
+
+def test_the_veille_of_30_09_replayed_in_a_conversation_offers_nothing(tmp_path, monkeypatch):
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    monkeypatch.setattr(settings, "_entry", lambda: {})
+    for i in range(8):
+        senzu.on_tool_result(
+            tool_name="web_search", session_id="v", status="ok", args={"query": f"CEE scooter {i}"}
+        )
+    senzu.on_tool_result(
+        tool_name="web_extract", session_id="v", status="ok", args={"urls": ["https://x.gouv.fr"]}
+    )
+    assert senzu.on_reply(response_text="Voici la veille.", session_id="v") is None
+
+
+def test_a_substantial_reply_is_never_interrupted(tmp_path, monkeypatch):
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    monkeypatch.setattr(settings, "_entry", lambda: {})
+    hammer("s", times=7)
+    assert senzu.on_reply(response_text="Rapport complet. " * 60, session_id="s") is None
+
+
+def test_an_installation_can_add_its_own_reading_tools(tmp_path, monkeypatch):
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    monkeypatch.setattr(settings, "_entry", lambda: {"read_only_tools": ["sage_query"]})
+    for _ in range(10):
+        senzu.on_tool_result(
+            tool_name="sage_query", session_id="e", status="ok", args={"sql": "select 1"}
+        )
+    assert senzu.on_reply(response_text="Voilà.", session_id="e") is None

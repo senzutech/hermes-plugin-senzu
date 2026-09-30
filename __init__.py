@@ -28,6 +28,17 @@ _ctx = None
 _pending: dict[str, str] = {}
 # Sessions whose reply already carried the offer this turn, so a guardrail halt does not repeat it.
 _offered: set[str] = set()
+# Where nobody is there to accept help: scheduled jobs, webhooks. The plugin stays silent there;
+# an offer would only end up in the middle of an automatic report.
+UNATTENDED = frozenset({"cron", "webhook", "msgraph_webhook"})
+# A reply this long delivers something: the turn did its job, whatever the calls looked like.
+SUBSTANTIAL_REPLY = 800
+
+
+def _unattended(platform: str, session_id: str) -> bool:
+    return str(getattr(platform, "value", platform) or "") in UNATTENDED or session_id.startswith(
+        "cron_"
+    )
 
 
 def on_tool_call(tool_name="", args=None, **_):
@@ -35,10 +46,13 @@ def on_tool_call(tool_name="", args=None, **_):
     return guard.approval(rule) if rule is not None else None
 
 
-def on_tool_result(tool_name="", session_id="", status="", **_):
-    # Only the verdict is kept, never the output: it can be large and it can hold secrets.
+def on_tool_result(tool_name="", session_id="", status="", args=None, **_):
+    # Only the verdict and a fingerprint of the arguments are kept, never the output or the
+    # arguments themselves: they can be large and they can hold secrets.
     calls = history.load(session_id)
-    calls.append(stuck.call_from_hook(tool_name, status))
+    calls.append(
+        stuck.call_from_hook(tool_name, status, args, extra_read_only=settings.read_only_tools())
+    )
     history.save(session_id, calls)
     # A handover filed: from now on the owner hears, in this chat, when Senzu moves on it.
     if "senzu_signaler" in (tool_name or "") and status not in ("error", "blocked"):
@@ -70,12 +84,17 @@ def on_inbound(event=None, gateway=None, **_):
     return None
 
 
-def on_reply(response_text="", session_id="", **_):
+def on_reply(response_text="", session_id="", platform="", **_):
     if not response_text:
+        return None
+    if _unattended(platform, session_id):
+        # A scheduled job: nobody to offer help to. Its calls must not weigh on a later session.
+        history.save(session_id, [])
         return None
     calls = history.load(session_id)
     reading = stuck.read(calls, settings.threshold())
-    if not calls or not reading.deserves_an_offer:
+    delivered = len(response_text.strip()) >= SUBSTANTIAL_REPLY
+    if not calls or not reading.deserves_an_offer or delivered:
         _offer_for_mood(session_id, reading)
         return None
     # Offered once: the repetition has to build up again before the owner is asked twice.
@@ -145,13 +164,13 @@ def on_turn_end(session_id="", conversation_history=None, **_):
     ).start()
 
 
-def on_turn_finished(session_id="", turn_exit_reason="", **_):
+def on_turn_finished(session_id="", turn_exit_reason="", platform="", **_):
     """Hermes' loop guardrail halted the turn: it has judged the assistant stuck, whatever our
     own count says (it stops five identical calls, before our threshold). The offer is the ask
     one whatever the setting, since a dossier written from a turn cut short would be thin."""
     already_offered = session_id in _offered
     _offered.discard(session_id)
-    if turn_exit_reason != "guardrail_halt" or already_offered:
+    if turn_exit_reason != "guardrail_halt" or already_offered or _unattended(platform, session_id):
         return
     calls = history.load(session_id)
     if stuck.read(calls).already_asked:

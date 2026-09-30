@@ -6,6 +6,20 @@ All notable changes to this plugin are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-09-30
+
+### Fixed
+
+- False offers in production, on scheduled jobs that were working (a morning brief of 15 varied
+  calls; a regulatory watch of 8 web searches on different questions and an extract):
+  - scheduled jobs (cron) and webhooks are never evaluated nor offered anything;
+  - only identical calls (same tool, same arguments, compared by a fingerprint, the arguments
+    themselves never kept) count as repetition; different arguments are research;
+  - tools that only read or search never count: a built-in list, MCP tools declared
+    `readOnlyHint`, names starting with a reading verb, and the installation's own
+    `read_only_tools`;
+  - a turn that ends on a substantial answer is never interrupted.
+
 ### Changed
 
 - senzu-access is presented as strongly recommended, not optional: without it Senzu's
@@ -74,7 +88,8 @@ All notable changes to this plugin are documented here. The format follows
 - `hermes senzu setup` to connect the Senzu MCP server and pick the mode, `hermes senzu doctor`
   to check the installation.
 
-[Unreleased]: https://github.com/senzutech/hermes-plugin-senzu/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/senzutech/hermes-plugin-senzu/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/senzutech/hermes-plugin-senzu/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/senzutech/hermes-plugin-senzu/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/senzutech/hermes-plugin-senzu/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/senzutech/hermes-plugin-senzu/releases/tag/v0.1.0
