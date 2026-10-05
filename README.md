@@ -126,7 +126,7 @@ Options: `--key <key>` to set the key non-interactively, `--url <endpoint>` for 
 <summary>Pinning a version</summary>
 
 ```bash
-hermes plugins install senzutech/hermes-plugin-senzu --ref v0.3.0 --enable
+hermes plugins install senzutech/hermes-plugin-senzu --ref v0.3.1 --enable
 ```
 
 Releases are listed on the [releases page](https://github.com/senzutech/hermes-plugin-senzu/releases).
@@ -215,7 +215,7 @@ and stop at the first step that fails to tell them what it printed.
 2. Install and connect:
 
    ```bash
-   hermes plugins install senzutech/hermes-plugin-senzu --ref v0.3.0 --enable
+   hermes plugins install senzutech/hermes-plugin-senzu --ref v0.3.1 --enable
    hermes senzu setup --key <key>
    ```
 

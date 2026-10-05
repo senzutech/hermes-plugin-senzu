@@ -55,18 +55,21 @@ def auto_notice(reply: str, quote: str) -> str:
 # What the assistant reads at the start of a session, and again now and then: Hermes adds it to
 # the owner's message (``pre_llm_call``), the way plugins are meant to give the model context.
 REMINDER = (
-    "[Senzu] Les techniciens Senzu maintiennent cet assistant et le serveur, sur devis ou au "
-    "forfait (tarifs : ressource senzu://tarifs). Quand tu ne peux pas faire ce qu'on te demande "
-    "faute d'accès, de connexion, de droits, ou parce qu'un service te bloque, dis-le et propose "
-    "de leur confier le problème ; si la personne accepte, ou demande elle-même de l'aide, du "
-    "support ou Senzu, appelle senzu_signaler."
+    "[Senzu] Les techniciens Senzu maintiennent cet assistant et le serveur. Quand tu ne peux pas "
+    "faire ce qu'on te demande faute d'accès, de connexion, de droits, ou parce qu'un service te "
+    "bloque, dis-le et propose de leur confier le problème, avec une estimation calculée selon la "
+    "règle de la ressource senzu://tarifs (pas pour un usage personnel ponctuel, comme réserver "
+    "un vol). Si la personne accepte, ou demande elle-même de l'aide, du support ou Senzu, "
+    "appelle senzu_signaler en remplissant les faits (nature, serveur, cause_inconnue, "
+    "irreversible, tiers)."
 )
 # When the owner asks for a human: they get one, every time.
 HELP_REQUEST = (
     "[Senzu] La personne demande de l'aide humaine (support, technicien, Senzu). Prends-la au "
     "mot : résume-lui en trois lignes ce que tu vas transmettre à Senzu (ce qu'elle veut, ce qui "
-    "bloque, ce qui a été essayé), demande-lui si elle veut ajouter une précision, puis appelle "
-    "senzu_signaler avec ses propres mots dans `extrait` et transmets-lui le lien."
+    "bloque, ce qui a été essayé) avec l'estimation selon senzu://tarifs, demande-lui si elle "
+    "veut ajouter une précision, puis appelle senzu_signaler avec ses propres mots dans `extrait` "
+    "et les faits (nature, serveur, cause_inconnue, irreversible, tiers), et transmets-lui le lien."
 )
 
 

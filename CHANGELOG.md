@@ -6,6 +6,14 @@ All notable changes to this plugin are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-10-05
+
+### Changed
+
+- The assistant is told to announce an estimate by the rule published in `senzu://tarifs`, to
+  fill the facts it prices (`nature`, `serveur`, `cause_inconnue`, `irreversible`, `tiers`) when
+  filing, and not to offer Senzu for a one-off personal errand (a flight, a room).
+
 ## [0.3.0] - 2026-10-05
 
 ### Changed
@@ -110,7 +118,8 @@ All notable changes to this plugin are documented here. The format follows
 - `hermes senzu setup` to connect the Senzu MCP server and pick the mode, `hermes senzu doctor`
   to check the installation.
 
-[Unreleased]: https://github.com/senzutech/hermes-plugin-senzu/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/senzutech/hermes-plugin-senzu/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/senzutech/hermes-plugin-senzu/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/senzutech/hermes-plugin-senzu/compare/v0.2.2...v0.3.0
 [0.2.2]: https://github.com/senzutech/hermes-plugin-senzu/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/senzutech/hermes-plugin-senzu/compare/v0.2.0...v0.2.1
