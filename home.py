@@ -1,9 +1,12 @@
-"""Where Hermes keeps things, and where this plugin keeps its own."""
+"""Where Hermes keeps things, where this plugin keeps its own, and the desk's name."""
 
 from __future__ import annotations
 
 import os
 from pathlib import Path
+
+# The MCP server name, as `hermes senzu setup` declares it.
+DESK = "senzu"
 
 
 def hermes_home() -> Path:
@@ -25,5 +28,5 @@ def env(name: str) -> str | None:
 
 
 def cache_dir() -> Path:
-    """The plugin's own files: recorded calls, open offers, the news cursor."""
+    """The plugin's own files: the news cursor."""
     return hermes_home() / "cache" / "senzu"

@@ -10,5 +10,6 @@ category: automation
 maintainer: senzutech
 docs_url: https://github.com/senzutech/hermes-plugin-senzu#readme
 capabilities:
-  hooks: [pre_tool_call, post_tool_call, transform_llm_output, post_llm_call]
+  hooks: [pre_tool_call, post_tool_call]
+  skills: [senzu]
   env: [SENZU_API_KEY]

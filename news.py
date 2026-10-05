@@ -17,7 +17,7 @@ import threading
 import time
 from typing import Any
 
-from . import access, channel, handover, home
+from . import access, channel, home
 
 log = logging.getLogger("hermes_plugins.senzu")
 
@@ -86,7 +86,7 @@ def check_once(ctx: Any) -> float:
     or 0 to stop."""
     state = _load()
     arguments = {} if state.get("cursor") is None else {"depuis": state["cursor"]}
-    news = _parse(ctx.call_mcp(handover.DESK, "senzu_nouvelles", arguments, timeout=30))
+    news = _parse(ctx.call_mcp(home.DESK, "senzu_nouvelles", arguments, timeout=30))
     if news is None:
         raise ValueError("unreadable answer from senzu_nouvelles")
     where = state.get("where")
@@ -105,7 +105,7 @@ def check_once(ctx: Any) -> float:
         confirm = {"acces": report}
         if state.get("cursor") is not None:
             confirm["depuis"] = state["cursor"]
-        ctx.call_mcp(handover.DESK, "senzu_nouvelles", confirm, timeout=30)
+        ctx.call_mcp(home.DESK, "senzu_nouvelles", confirm, timeout=30)
     delay = float(news.get("next_check_seconds") or 0)
     state["active"] = delay > 0
     state["next_at"] = time.time() + delay if delay > 0 else None

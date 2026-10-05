@@ -1,20 +1,14 @@
 name: senzu
-version: "0.3.3"
+version: "0.4.0"
 description: >-
-  Hands what the assistant cannot do over to Senzu, the people who maintain it: on request at
-  any time, when the assistant lacks an access or a connection, and a warning before critical
-  actions.
+  Senzu, the technicians who maintain this assistant, one request away: the senzu skill and MCP
+  server to hand a problem over, a warning before critical actions, news of each handover, and
+  maintenance access while the paid work is in progress.
 author: Senzu
 homepage: https://github.com/senzutech/hermes-plugin-senzu
 provides_hooks:
   - pre_tool_call
   - post_tool_call
-  - pre_llm_call
-  - pre_gateway_dispatch
-  - transform_llm_output
-  - post_llm_call
-  - on_session_end
-  - gateway_platform_event
 requires_env:
   - name: SENZU_API_KEY
     description: "Clé d'installation fournie par Senzu"

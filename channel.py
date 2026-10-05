@@ -13,27 +13,11 @@ from . import home
 
 
 class Gateway:
-    """The running gateway and its event loop.
-
-    ``pre_gateway_dispatch`` is the documented way for a plugin to reach
-    ``gateway.adapters[platform].send``, but it only fires on an inbound message. Until one
-    arrives, the runner is found the way Hermes' own send_message tool finds it, so a gateway
-    restarted with a handover open keeps checking on it. Outside the gateway (``hermes chat``)
-    there is none, and the offer stays in the reply.
-    """
+    """The running gateway and its event loop, found the way Hermes' own send_message tool
+    finds them. Outside the gateway (``hermes chat``) there is none, and nothing is sent."""
 
     runner: Any = None
     loop: Any = None
-
-    @classmethod
-    def capture(cls, gateway: Any) -> None:
-        import asyncio
-
-        cls.runner = gateway
-        try:
-            cls.loop = asyncio.get_running_loop()
-        except RuntimeError:
-            pass
 
     @classmethod
     def discover(cls) -> None:

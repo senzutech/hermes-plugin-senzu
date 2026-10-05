@@ -1,21 +1,44 @@
 """``hermes senzu setup`` and ``hermes senzu doctor``.
 
-A Hermes plugin cannot declare an MCP server, so the plugin installs it itself, with the same
-configuration calls ``hermes mcp add`` and ``hermes config set`` make. One command after
-``hermes plugins install``, and nothing to edit by hand.
+A Hermes plugin cannot declare an MCP server or a skill, so ``setup`` does what an owner would
+do by hand, with Hermes' own means: the configuration calls ``hermes mcp add`` makes, and
+``hermes skills install`` for the ``senzu`` skill. One command after
+``hermes plugins install``, and nothing to edit.
 """
 
 from __future__ import annotations
 
 import argparse
+import subprocess
+import sys
+from pathlib import Path
 from typing import Any
 
-from . import access, settings
-from .handover import DESK
-from .home import env
+from . import access
+from .home import DESK, env, hermes_home
 
 DEFAULT_URL = "https://senzu.cr.edouard.cl/mcp"
 KEY = "SENZU_API_KEY"
+SKILL = "senzu"
+REPOSITORY = "https://raw.githubusercontent.com/senzutech/hermes-plugin-senzu"
+
+
+def _version() -> str:
+    """This plugin's version, as plugin.yaml declares it: the skill installed is its own."""
+    try:
+        for line in (Path(__file__).parent / "plugin.yaml").read_text().splitlines():
+            if line.startswith("version:"):
+                return line.split(":", 1)[1].strip().strip("\"'")
+    except OSError:
+        pass
+    return "main"
+
+
+def skill_url() -> str:
+    """Where the skill of this very version is published."""
+    version = _version()
+    ref = f"v{version}" if version[:1].isdigit() else version
+    return f"{REPOSITORY}/{ref}/skills/{SKILL}/SKILL.md"
 
 
 def setup_parser(parser: argparse.ArgumentParser) -> None:
@@ -23,18 +46,6 @@ def setup_parser(parser: argparse.ArgumentParser) -> None:
     setup = commands.add_parser("setup", help="Connect this installation to the Senzu desk")
     setup.add_argument("--key", help=f"API key given by Senzu (default: {KEY} from .env)")
     setup.add_argument("--url", default=DEFAULT_URL, help="MCP endpoint of the Senzu desk")
-    setup.add_argument(
-        "--handover",
-        choices=("ask", "auto"),
-        help="ask: offer and wait for the owner's « Senzu » (default); "
-        "auto: send the dossier to Senzu as soon as the assistant is stuck",
-    )
-    setup.add_argument(
-        "--mood",
-        choices=("on", "off"),
-        help="on: the installation's model reads the owner's messages for dissatisfaction and "
-        "offers Senzu when it builds up (default); off: only repeated tool calls count",
-    )
     commands.add_parser("doctor", help="Check that everything Senzu needs is in place")
 
 
@@ -61,20 +72,34 @@ def _setup(args: argparse.Namespace) -> int:
         (f"mcp_servers.{DESK}.headers.Authorization", f"Bearer ${{{KEY}}}"),
         (f"mcp_servers.{DESK}.connect_timeout", "30"),
         (f"mcp_servers.{DESK}.enabled", "true"),
-        # Without it the plugin cannot file the dossier and falls back to the text offer.
+        # The plugin asks the desk for news of open handovers over this MCP connection.
         ("plugins.entries.senzu.mcp_allowlist", f'["{DESK}"]'),
-        # Lets a 👍 on the offer resume the conversation, as if the owner had typed « Senzu ».
-        ("plugins.entries.senzu.allow_gateway_injection", "true"),
     ):
         set_config_value(key, value, force=True)
-    try:
-        chosen = settings.change(args.handover, args.mood)
-    except ValueError as error:
-        print(f"✗ {error}")
+    print("✓ Serveur MCP senzu déclaré")
+    if not _install_skill():
         return 1
-    mode = "envoi automatique du dossier" if chosen["handover"] == "auto" else "sur votre accord"
-    print(f"✓ Bureau Senzu branché, reprise {mode}. Redémarrez le gateway : hermes gateway restart")
+    print("✓ Skill senzu installé. Redémarrez le gateway : hermes gateway restart")
     return 0
+
+
+def _install_skill() -> bool:
+    """``hermes skills install``, as an owner would run it: Hermes scans and records it. Run
+    again, it replaces the installed copy with this version's."""
+    command = [sys.executable, "-m", "hermes_cli.main", "skills", "install", skill_url()]
+    command += ["--name", SKILL, "--yes"]
+    if skill_installed():
+        command.append("--force")
+    result = subprocess.run(command, capture_output=True, text=True, check=False, timeout=120)
+    if result.returncode != 0:
+        print(f"✗ Skill senzu non installé : {(result.stderr or result.stdout).strip()[-300:]}")
+        return False
+    return True
+
+
+def skill_installed() -> bool:
+    """Whether a ``senzu`` skill sits in Hermes' skills, in whatever category folder."""
+    return any((hermes_home() / "skills").glob(f"**/{SKILL}/SKILL.md"))
 
 
 def _doctor() -> int:
@@ -88,15 +113,11 @@ def _doctor() -> int:
         ("Plugin activé", "senzu" in (plugins.get("enabled") or [])),
         (f"Clé {KEY}", bool(env(KEY))),
         ("Serveur MCP senzu déclaré", bool(server.get("url"))),
-        ("Accès du plugin au MCP", DESK in (entry.get("mcp_allowlist") or [])),
-        ("Réponse par réaction 👍", entry.get("allow_gateway_injection") is True),
+        ("Skill senzu installé", skill_installed()),
+        ("Suivi des tickets (accès du plugin au MCP)", DESK in (entry.get("mcp_allowlist") or [])),
     )
     for label, ok in checks:
         print(f"{'✓' if ok else '✗'} {label}")
-    handover = "automatique" if settings.mode() == settings.AUTO else "sur votre accord"
-    print(f"• Reprise par Senzu : {handover}")
-    listening = "activée" if settings.mood() else "désactivée"
-    print(f"• Lecture de l'agacement par le modèle : {listening}")
     state = access.status()
     if state is None:
         print(
