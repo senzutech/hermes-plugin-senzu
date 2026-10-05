@@ -1,5 +1,5 @@
 name: senzu
-version: "0.3.1"
+version: "0.3.2"
 description: >-
   Hands what the assistant cannot do over to Senzu, the people who maintain it: on request at
   any time, when the assistant lacks an access or a connection, and a warning before critical
