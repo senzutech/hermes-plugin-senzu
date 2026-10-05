@@ -6,6 +6,30 @@ All notable changes to this plugin are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-05
+
+Only what Hermes expects of a plugin, and nothing on the side.
+
+### Added
+
+- The `senzu` skill (`skills/senzu/SKILL.md`), installed by `hermes senzu setup` with
+  `hermes skills install`: listed in the skills index the assistant reads, it says when to hand
+  a problem over (a missing access, a broken tool, the owner asking for Senzu, Édouard, support
+  or a technician) and how (summary, a detail from the owner, the estimate by `senzu://tarifs`,
+  `senzu_signaler`, the link). Its description fits the 60 characters the index shows.
+- `hermes senzu doctor` checks that the skill is installed.
+
+### Removed
+
+- Everything that spoke for the model or around it: the note added with `pre_llm_call`, the
+  offer sent after a reply admitting a missing access, the reading of the owner's mood, the
+  offer after Hermes' loop guardrail, the « Senzu » and 👍 answers to an offer, the `auto`
+  handover mode, the record of tool calls, and the `handover` and `mood` settings. The skill
+  does their job the way Hermes means it to be done.
+- Hooks `pre_llm_call`, `pre_gateway_dispatch`, `transform_llm_output`, `post_llm_call`,
+  `on_session_end`, `gateway_platform_event`: the plugin keeps `pre_tool_call` (critical-action
+  gate) and `post_tool_call` (a ticket filed starts the news and the maintenance access).
+
 ## [0.3.3] - 2026-10-05
 
 ### Changed
@@ -132,7 +156,8 @@ All notable changes to this plugin are documented here. The format follows
 - `hermes senzu setup` to connect the Senzu MCP server and pick the mode, `hermes senzu doctor`
   to check the installation.
 
-[Unreleased]: https://github.com/senzutech/hermes-plugin-senzu/compare/v0.3.3...HEAD
+[Unreleased]: https://github.com/senzutech/hermes-plugin-senzu/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/senzutech/hermes-plugin-senzu/compare/v0.3.3...v0.4.0
 [0.3.3]: https://github.com/senzutech/hermes-plugin-senzu/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/senzutech/hermes-plugin-senzu/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/senzutech/hermes-plugin-senzu/compare/v0.3.0...v0.3.1
