@@ -2,13 +2,12 @@
 name: senzu
 # Hermes shows 60 characters of it in the skills index: the trigger has to fit.
 description: Bloqué (accès, panne, outil) ou on demande Senzu ou Édouard
-version: 0.4.0
+version: 0.4.1
 author: Senzu
 license: MIT
 metadata:
   hermes:
     tags: [support, maintenance, handover]
-    requires_tools: [mcp__senzu__senzu_signaler]
 ---
 
 # Senzu

@@ -6,6 +6,13 @@ All notable changes to this plugin are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-10-05
+
+### Fixed
+
+- The skill no longer declares `requires_tools`: the gateway builds the session's prompt before
+  the MCP tools are registered, so the skill was hidden from the index.
+
 ## [0.4.0] - 2026-10-05
 
 Only what Hermes expects of a plugin, and nothing on the side.
@@ -156,7 +163,8 @@ Only what Hermes expects of a plugin, and nothing on the side.
 - `hermes senzu setup` to connect the Senzu MCP server and pick the mode, `hermes senzu doctor`
   to check the installation.
 
-[Unreleased]: https://github.com/senzutech/hermes-plugin-senzu/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/senzutech/hermes-plugin-senzu/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/senzutech/hermes-plugin-senzu/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/senzutech/hermes-plugin-senzu/compare/v0.3.3...v0.4.0
 [0.3.3]: https://github.com/senzutech/hermes-plugin-senzu/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/senzutech/hermes-plugin-senzu/compare/v0.3.1...v0.3.2

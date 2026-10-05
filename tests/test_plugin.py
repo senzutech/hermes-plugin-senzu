@@ -73,7 +73,10 @@ def test_the_skill_says_when_and_how():
     skill = (Path(senzu.__file__).parent / "skills" / "senzu" / "SKILL.md").read_text()
     front, body = skill.split("---", 2)[1:]
     assert "name: senzu" in front and "description:" in front
-    assert "requires_tools: [mcp__senzu__senzu_signaler]" in front
+    # No `requires_tools`: the gateway builds the prompt before the MCP tools are in, and would
+    # hide the skill (seen in production, 0.4.0).
+    assert "requires_tools" not in front
+    assert len(front.split("description:", 1)[1].splitlines()[0].strip()) <= 60
     for needed in ("senzu://tarifs", "mcp__senzu__senzu_signaler", "nature", "cause_inconnue"):
         assert needed in body
 
