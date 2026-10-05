@@ -6,6 +6,28 @@ All notable changes to this plugin are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-05
+
+### Changed
+
+- Senzu is offered when the assistant cannot do something, as it says in its own reply, no
+  longer from counting tool calls. Measured on two installations' real conversations (22
+  sessions, 374 turns): counting found nothing worth an offer, while every moment Senzu was
+  needed was an admission of a missing access (« la connexion Gmail n'est pas encore faite »,
+  « mon accès à Artinove est en lecture seule », « un filtre anti-robot »).
+- `threshold` and `read_only_tools` are gone, with the counting they tuned; a config that still
+  has them reads fine.
+
+### Added
+
+- `pre_llm_call`: the assistant is told Senzu exists, how much it costs (`senzu://tarifs`) and
+  when to offer it, at the start of a session and every 15 turns.
+- The owner asking for a human (« Senzu », support, a technician, « je passe le relais ») is
+  taken at their word every time, never rationed.
+- Automatic offers are rationed: once a day per missing access, two a day at most per chat,
+  shared with the offers on irritation and on Hermes' loop guardrail.
+- The installation steps tell the owner they can ask for Senzu at any time.
+
 ## [0.2.2] - 2026-09-30
 
 ### Fixed
@@ -88,7 +110,8 @@ All notable changes to this plugin are documented here. The format follows
 - `hermes senzu setup` to connect the Senzu MCP server and pick the mode, `hermes senzu doctor`
   to check the installation.
 
-[Unreleased]: https://github.com/senzutech/hermes-plugin-senzu/compare/v0.2.2...HEAD
+[Unreleased]: https://github.com/senzutech/hermes-plugin-senzu/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/senzutech/hermes-plugin-senzu/compare/v0.2.2...v0.3.0
 [0.2.2]: https://github.com/senzutech/hermes-plugin-senzu/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/senzutech/hermes-plugin-senzu/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/senzutech/hermes-plugin-senzu/compare/v0.1.0...v0.2.0

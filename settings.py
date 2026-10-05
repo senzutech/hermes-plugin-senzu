@@ -3,7 +3,7 @@
 They live in ``config.yaml`` under ``plugins.entries.senzu`` and are read on every reply, so a
 change takes effect at the next one, without restarting anything. They are changed from the
 command line (``hermes senzu setup``, ``hermes config set``), never through a tool the model can
-see: a model that knows about thresholds and modes recites them to the owner instead of handing
+see: a model that knows about settings and modes recites them to the owner instead of handing
 over, which is what happened the one time it had such a tool.
 """
 
@@ -11,14 +11,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from .stuck import HAMMERING
-
 ASK, AUTO = "ask", "auto"
 ON, OFF = "on", "off"
-# Below three, ordinary work would trigger it; above fifty, it would never fire within the
-# forty calls the reading looks at... except that the share rule still applies, so the cap is
-# where the setting stops meaning anything.
-THRESHOLD_RANGE = (3, 50)
 
 
 def _entry() -> dict:
@@ -36,46 +30,20 @@ def mode() -> str:
     return AUTO if _entry().get("handover") == AUTO else ASK
 
 
-def threshold() -> int:
-    """Calls to one same tool before the offer. Out-of-range or unreadable values fall back."""
-    try:
-        value = int(_entry().get("threshold", HAMMERING))
-    except (TypeError, ValueError):
-        return HAMMERING
-    low, high = THRESHOLD_RANGE
-    return value if low <= value <= high else HAMMERING
-
-
 def mood() -> bool:
     """Whether the owner's messages are read for dissatisfaction. On unless turned off: it is one
     short call on the installation's own model per message the owner writes."""
     return _entry().get("mood", ON) != OFF
 
 
-def read_only_tools() -> tuple[str, ...]:
-    """Tools this installation adds to those that only read or search (an ERP query, a CRM
-    lookup…), so calling them many times is never read as a loop."""
-    listed = _entry().get("read_only_tools") or []
-    if isinstance(listed, str):
-        listed = listed.split(",")
-    return tuple(str(tool).strip() for tool in listed if str(tool).strip())
-
-
 def current() -> dict[str, Any]:
-    return {"threshold": threshold(), "handover": mode(), "mood": ON if mood() else OFF}
+    return {"handover": mode(), "mood": ON if mood() else OFF}
 
 
-def change(
-    threshold: int | None = None, handover: str | None = None, mood: str | None = None
-) -> dict[str, Any]:
+def change(handover: str | None = None, mood: str | None = None) -> dict[str, Any]:
     """Write what was given, leave the rest as it is, and return the settings now in force."""
     from hermes_cli.config import set_config_value
 
-    low, high = THRESHOLD_RANGE
-    if threshold is not None:
-        if not low <= int(threshold) <= high:
-            raise ValueError(f"threshold must be between {low} and {high}")
-        set_config_value("plugins.entries.senzu.threshold", str(int(threshold)), force=True)
     if handover is not None:
         if handover not in (ASK, AUTO):
             raise ValueError("handover must be 'ask' or 'auto'")

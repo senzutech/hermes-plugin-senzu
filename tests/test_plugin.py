@@ -7,21 +7,23 @@ import threading
 import pytest
 import senzu
 from fakes import FakeAdapter, FakeContext, _event, _gateway, _Inline
-from senzu import channel, handover, history, offers, settings
+from senzu import channel, gaps, handover, history, offers, settings
 
 
 @pytest.fixture(autouse=True)
 def no_gateway(monkeypatch):
-    """Each test starts outside the gateway, as `hermes chat` would."""
+    """Each test starts outside the gateway, as `hermes chat` would, with nothing offered yet."""
     monkeypatch.setattr(channel.Gateway, "runner", None)
     monkeypatch.setattr(channel.Gateway, "loop", None)
+    monkeypatch.setattr(senzu, "_ration", gaps.Ration())
+    monkeypatch.setattr(senzu, "_turns", {})
 
 
-def hammer(session_id, times=7):
-    for _ in range(times):
-        senzu.on_tool_result(
-            tool_name="terminal", session_id=session_id, status="ok", args={"command": "npm i"}
-        )
+# As an assistant said it in production, word for word.
+STUCK = (
+    "Clément, je n'ai toujours pas accès à vos mails : la connexion Gmail n'est pas encore "
+    "faite. Je ne peux donc pas récupérer la liasse fiscale."
+)
 
 
 def test_register_wires_every_hook_and_the_command(tmp_path, monkeypatch):
@@ -31,6 +33,7 @@ def test_register_wires_every_hook_and_the_command(tmp_path, monkeypatch):
     assert set(ctx.hooks) == {
         "pre_tool_call",
         "post_tool_call",
+        "pre_llm_call",
         "pre_gateway_dispatch",
         "transform_llm_output",
         "post_llm_call",
@@ -43,12 +46,11 @@ def test_register_wires_every_hook_and_the_command(tmp_path, monkeypatch):
 def test_by_default_the_owner_is_asked_and_nothing_is_sent(tmp_path, monkeypatch):
     monkeypatch.setenv("HERMES_HOME", str(tmp_path))
     monkeypatch.setattr(settings, "_entry", lambda: {})
-    hammer("s")
-    reply = senzu.on_reply(response_text="Je réessaie.", session_id="s")
-    assert reply.startswith("Je réessaie.\n\n---\n🛟 Je n'avance plus")
-    assert "7 fois" in reply and "« Senzu »" in reply
+    reply = senzu.on_reply(response_text=STUCK, session_id="s")
+    assert reply.startswith(STUCK + "\n\n---\n🛟 « ")
+    assert "la connexion Gmail n'est pas encore faite" in reply and "« Senzu »" in reply
     assert "Rien ne leur est envoyé sans votre accord" in reply
-    assert senzu.on_reply(response_text="Encore.", session_id="s") is None, "offered once"
+    assert senzu.on_reply(response_text=STUCK, session_id="s") is None, "the same gap, once a day"
 
 
 def test_auto_mode_files_the_dossier_and_sends_the_link_through_the_gateway(tmp_path, monkeypatch):
@@ -70,8 +72,7 @@ def test_auto_mode_files_the_dossier_and_sends_the_link_through_the_gateway(tmp_
             break
         threading.Event().wait(0.01)
 
-    hammer("s")
-    reply = senzu.on_reply(response_text="Je réessaie.", session_id="s")
+    reply = senzu.on_reply(response_text=STUCK, session_id="s")
     assert "je transmets le dossier" in reply
     handover.auto_handover(ctx, "s", [{"role": "user", "content": "installe ClickUp"}], "x")
 
@@ -91,9 +92,8 @@ def test_auto_mode_without_a_gateway_falls_back_to_asking(tmp_path, monkeypatch)
     monkeypatch.setenv("HERMES_HOME", str(tmp_path))
     monkeypatch.setattr(settings, "_entry", lambda: {"handover": "auto"})
     monkeypatch.setattr(channel.Gateway, "runner", None)
-    hammer("cli")
-    reply = senzu.on_reply(response_text="Je réessaie.", session_id="cli")
-    assert "répondez « Senzu »" in reply
+    reply = senzu.on_reply(response_text=STUCK, session_id="cli")
+    assert "Répondez « Senzu »" in reply
 
 
 def test_honest_work_is_left_alone(tmp_path, monkeypatch):
@@ -121,7 +121,6 @@ def test_a_guardrail_halt_sends_the_offer_through_the_gateway(tmp_path, monkeypa
     monkeypatch.setenv("HERMES_HOME", str(tmp_path))
     adapter, loop = _gateway(tmp_path)
     monkeypatch.setattr(threading, "Thread", _Inline)
-    hammer("h", times=5)  # Hermes stops identical calls at five, below our threshold
     assert senzu.on_reply(response_text="Arrêt.", session_id="h") is None
     senzu.on_turn_finished(session_id="h", turn_exit_reason="guardrail_halt")
     assert len(adapter.sent) == 1 and "Hermes vient d'arrêter cette tâche" in adapter.sent[0][1]
@@ -133,8 +132,7 @@ def test_no_second_offer_when_this_turn_already_made_one(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "_entry", lambda: {})
     adapter, loop = _gateway(tmp_path)
     monkeypatch.setattr(threading, "Thread", _Inline)
-    hammer("h", times=7)
-    assert senzu.on_reply(response_text="Je réessaie.", session_id="h") is None
+    assert senzu.on_reply(response_text=STUCK, session_id="h") is None
     senzu.on_turn_finished(session_id="h", turn_exit_reason="guardrail_halt")
     assert len(adapter.sent) == 1, "the offer, once"
     loop.call_soon_threadsafe(loop.stop)
@@ -152,7 +150,6 @@ def test_the_owners_senzu_after_a_halt_becomes_an_explicit_request(tmp_path, mon
     monkeypatch.setenv("HERMES_HOME", str(tmp_path))
     adapter, loop = _gateway(tmp_path)
     monkeypatch.setattr(threading, "Thread", _Inline)
-    hammer("h", times=5)
     senzu.on_turn_finished(session_id="h", turn_exit_reason="guardrail_halt")
     rewritten = senzu.on_inbound(event=_event("Senzu !"))
     assert rewritten["action"] == "rewrite" and "senzu_signaler" in rewritten["text"]
@@ -178,10 +175,9 @@ def test_on_telegram_a_thumbs_up_on_the_offer_resumes_the_conversation(tmp_path,
     monkeypatch.setattr(threading, "Thread", _Inline)
     ctx = FakeContext()
     senzu.register(ctx)
-    hammer("h", times=7)
-    assert senzu.on_reply(response_text="Je réessaie.", session_id="h") is None, "reply untouched"
+    assert senzu.on_reply(response_text=STUCK, session_id="h") is None, "reply untouched"
     (_chat, text) = adapter.sent[0]
-    assert "réagissez 👍 à ce message" in text
+    assert "Réagissez 👍 à ce message" in text
 
     reaction = {"chat_id": 7, "message_id": "m1", "emojis": ["👍"]}
     senzu.on_reaction(platform="telegram", event_type="reaction", payload=reaction)
@@ -217,9 +213,8 @@ def test_elsewhere_the_offer_follows_as_text_to_answer(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "_entry", lambda: {})
     adapter, loop = _gateway(tmp_path, platform="discord")
     monkeypatch.setattr(threading, "Thread", _Inline)
-    hammer("h", times=7)
-    assert senzu.on_reply(response_text="Je réessaie.", session_id="h") is None
-    assert "répondez « Senzu »" in adapter.sent[0][1]
+    assert senzu.on_reply(response_text=STUCK, session_id="h") is None
+    assert "Répondez « Senzu »" in adapter.sent[0][1]
     assert "réagissez" not in adapter.sent[0][1]
     loop.call_soon_threadsafe(loop.stop)
 
@@ -244,49 +239,62 @@ def test_no_gateway_outside_the_gateway_process():
     assert not channel.Gateway.ready()
 
 
-# --- Production, 30/09: offers made to scheduled jobs that were working --------------------------
+# --- Production, 30/09 and the exports of 04/10 ------------------------------------------------
 
 
 def test_a_scheduled_job_is_never_offered_anything(tmp_path, monkeypatch):
     monkeypatch.setenv("HERMES_HOME", str(tmp_path))
     monkeypatch.setattr(settings, "_entry", lambda: {})
-    hammer("cron_veille_20260930_040000", times=9)
-    reply = senzu.on_reply(
-        response_text="Rapport de veille.",
-        session_id="cron_veille_20260930_040000",
-        platform="cron",
-    )
-    assert reply is None
-    assert history.load("cron_veille_20260930_040000") == [], "nothing left to weigh later"
-    hammer("s2", times=9)
-    assert senzu.on_reply(response_text="Rapport.", session_id="s2", platform="cron") is None
+    assert senzu.on_reply(response_text=STUCK, session_id="cron_veille_1", platform="cron") is None
+    assert senzu.on_reply(response_text=STUCK, session_id="s2", platform="cron") is None
+    assert senzu.on_turn_start(session_id="s2", user_message="x", platform="cron") is None
 
 
-def test_the_veille_of_30_09_replayed_in_a_conversation_offers_nothing(tmp_path, monkeypatch):
+def test_working_research_offers_nothing(tmp_path, monkeypatch):
+    """The regulatory watch of 30/09: eight searches, an extract, a full report."""
     monkeypatch.setenv("HERMES_HOME", str(tmp_path))
     monkeypatch.setattr(settings, "_entry", lambda: {})
-    for i in range(8):
-        senzu.on_tool_result(
-            tool_name="web_search", session_id="v", status="ok", args={"query": f"CEE scooter {i}"}
-        )
-    senzu.on_tool_result(
-        tool_name="web_extract", session_id="v", status="ok", args={"urls": ["https://x.gouv.fr"]}
-    )
-    assert senzu.on_reply(response_text="Voici la veille.", session_id="v") is None
+    for _ in range(8):
+        senzu.on_tool_result(tool_name="web_search", session_id="v", status="ok")
+    senzu.on_tool_result(tool_name="web_extract", session_id="v", status="error")
+    report = "Rien de paru sur les fiches CEE scooter cette semaine. " * 20
+    assert senzu.on_reply(response_text=report, session_id="v") is None
 
 
-def test_a_substantial_reply_is_never_interrupted(tmp_path, monkeypatch):
+def test_an_answer_that_names_senzu_already_made_the_offer(tmp_path, monkeypatch):
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    reply = STUCK + " Si vous voulez, les techniciens Senzu peuvent la brancher."
+    assert senzu.on_reply(response_text=reply, session_id="s") is None
+
+
+def test_no_offer_once_the_desk_was_called(tmp_path, monkeypatch):
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    senzu.on_tool_result(tool_name="mcp__senzu__senzu_signaler", session_id="s", status="ok")
+    assert senzu.on_reply(response_text=STUCK, session_id="s") is None
+
+
+def test_automatic_offers_are_rationed_but_different_gaps_each_get_one(tmp_path, monkeypatch):
     monkeypatch.setenv("HERMES_HOME", str(tmp_path))
     monkeypatch.setattr(settings, "_entry", lambda: {})
-    hammer("s", times=7)
-    assert senzu.on_reply(response_text="Rapport complet. " * 60, session_id="s") is None
+    dropbox = "Je n'ai pas accès à votre Dropbox, il n'est pas encore connecté."
+    hubspot = "Je n'ai pas accès à HubSpot, et toi non plus tant que la clé d'accès bloque."
+    assert senzu.on_reply(response_text=STUCK, session_id="s") is not None
+    assert senzu.on_reply(response_text=dropbox, session_id="s") is not None
+    assert senzu.on_reply(response_text=hubspot, session_id="s") is None, "two a day at most"
 
 
-def test_an_installation_can_add_its_own_reading_tools(tmp_path, monkeypatch):
-    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
-    monkeypatch.setattr(settings, "_entry", lambda: {"read_only_tools": ["sage_query"]})
-    for _ in range(10):
-        senzu.on_tool_result(
-            tool_name="sage_query", session_id="e", status="ok", args={"sql": "select 1"}
-        )
-    assert senzu.on_reply(response_text="Voilà.", session_id="e") is None
+def test_the_assistant_learns_about_senzu_at_the_start_and_now_and_then(tmp_path, monkeypatch):
+    first = senzu.on_turn_start(session_id="r", user_message="Bonjour", is_first_turn=True)
+    assert "senzu_signaler" in first["context"] and "senzu://tarifs" in first["context"]
+    quiet = [senzu.on_turn_start(session_id="r", user_message="Et ensuite ?") for _ in range(14)]
+    assert quiet == [None] * 14
+    assert senzu.on_turn_start(session_id="r", user_message="Et ensuite ?") is not None
+
+
+def test_the_owner_asking_for_help_always_gets_it(tmp_path, monkeypatch):
+    for _ in range(5):
+        hint = senzu.on_turn_start(session_id="o", user_message="Je passe le relais au support")
+        assert "aide humaine" in hint["context"], "never rationed"
+    assert senzu.on_turn_start(session_id="o", user_message="Senzu, aide-moi")[
+        "context"
+    ].startswith("[Senzu] La personne demande")

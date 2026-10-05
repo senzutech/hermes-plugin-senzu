@@ -21,22 +21,24 @@
 assistant. This plugin is how its customers call on it: you install it because you want experts
 to take over from time to time, when the assistant (or you) cannot get something done alone.
 
-AI assistants get stuck in a recognisable way: not with an error, but by trying the same thing
-again and again while you wait. A model in that state does not stop to ask for help, however it
-is instructed to. The plugin notices it for the model and offers to hand the problem over to
-your Senzu experts. It also puts you in the loop before the handful of actions that cannot be
+An assistant that cannot do something usually says so: « je n'ai pas accès à vos mails »,
+« Dropbox n'est pas encore connecté », « un filtre anti-robot me bloque ». Connecting, opening
+and repairing those is what Senzu does. The plugin makes sure the assistant knows it can offer
+Senzu, hears you whenever you ask for help, and offers it itself when the assistant admits a
+missing access without mentioning it. It also puts you in the loop before the handful of actions that cannot be
 taken back, with the option of having Senzu do them for you.
 
 | | |
 |---|---|
-| 🛟 **Handover when stuck** | When one tool dominates the recent calls without progress, you are offered to hand over, or it is handed over directly if you chose so. |
+| 🙋 **Ask, any time** | Say « Senzu », ask for support or a technician: your assistant prepares the dossier, every time, no limit. |
+| 🛟 **Offered when the assistant cannot** | When its reply admits a missing access, connection or right (and does not already mention Senzu), the offer follows, at most once a day per missing access. |
 | 😤 **Handover when you have had enough** | Your own model reads each message you write for irritation or discouragement aimed at the assistant. Twice in a row, and Senzu is offered after the next reply. No word lists. |
 | 🧾 **A dossier, not a transcript** | Senzu receives a summary: objective, blocker, what was tried, services involved. Never the conversation, never your files. |
 | 🚦 **Critical-action gate** | Mass deletion, payments, public posts, invoices… open Hermes' native approval prompt: the risk first, then the choice to do it now or have Senzu do it. |
 | 🔔 **Kept informed** | While a handover is open, the plugin asks Senzu for news and tells you in your usual chat: payment received, work done, Senzu's messages. No public address or open port needed. |
 | 🔐 **Maintenance access, only when needed** | With [senzu-access](https://github.com/senzutech/senzu-access), strongly recommended, Senzu's SSH access opens when a paid handover starts and closes when it is done. You are told each time. |
 | 📡 **Every channel** | Everything goes through the Hermes gateway: Telegram, WhatsApp, Discord, Slack, email, CLI. |
-| 🔒 **The model reads, rules decide** | Being stuck and being dangerous are counted, never asked of the model. Your mood is the one thing a model reads, as a word, and a fixed rule decides what follows. |
+| 🔒 **Rules decide** | What is offered and when follows fixed rules, rationed; dangerous actions are recognised by a catalogue, never asked of the model. |
 
 ## Installation
 
@@ -61,7 +63,7 @@ hermes senzu doctor
 ✓ Serveur MCP senzu déclaré
 ✓ Accès du plugin au MCP
 ✓ Réponse par réaction 👍
-• Reprise par Senzu : sur votre accord, offre après 6 appels
+• Reprise par Senzu : sur votre accord
 • Lecture de l'agacement par le modèle : activée
 • Accès de maintenance : installé, fermé
 ```
@@ -73,23 +75,21 @@ without restarting anything.
 
 | Setting | Default | Meaning |
 |---|---|---|
-| `threshold` | `6` | Identical calls (same tool, same arguments) before Senzu is offered. From 3 to 50. Raise it to be offered help less often. |
-| `read_only_tools` | none | This installation's own reading tools (an ERP query, a CRM lookup), never counted as a loop: `hermes config set plugins.entries.senzu.read_only_tools '["sage_query"]'` |
 | `handover` | `ask` | `ask` or `auto`, see below. |
 | `mood` | `on` | `on`: your model reads each message you write for irritation aimed at the assistant (one short call per message, on your tokens). `off`: only tool calls count. |
 
 Change them in any of three ways, which all write `plugins.entries.senzu` in `config.yaml`:
 
 ```bash
-hermes senzu setup --threshold 10 --handover auto      # only what you pass is changed
-hermes config set plugins.entries.senzu.threshold 10
+hermes senzu setup --handover auto --mood off      # only what you pass is changed
+hermes config set plugins.entries.senzu.handover auto
 ```
 
 The defaults suit most installations; there is nothing to configure to get started.
 
 ### Handover mode
 
-| `hermes senzu setup --handover …` | When the assistant is stuck |
+| `hermes senzu setup --handover …` | When Senzu is offered |
 |---|---|
 | `ask` (default) | The offer follows the reply. Answer with a 👍 (or ✅, ❤️) on it on Telegram, or type « Senzu » anywhere. Nothing is sent to Senzu until you do. The assistant then shows you, in three lines, what it is about to send, and asks whether you want to add anything (what you want, what you tried): you have the last word, and your own words go into the dossier. |
 | `auto` | You decided once that Senzu may step in. The plugin writes the dossier with your assistant's model, files it, and sends you the link to approve the work. Nothing is done before you click. |
@@ -114,12 +114,11 @@ plugins:
       mcp_allowlist: [senzu]   # lets the plugin file the dossier itself (auto mode)
       allow_gateway_injection: true   # lets a 👍 on the offer resume the conversation
       handover: ask            # or auto, only if you pass --handover
-      threshold: 6             # only if you pass --threshold
 ```
 
 Options: `--key <key>` to set the key non-interactively, `--url <endpoint>` for another desk,
 `--mood on|off`,
-`--threshold <n>`, `--handover ask|auto`. Running `setup` again only changes what you pass.
+`--handover ask|auto`. Running `setup` again only changes what you pass.
 
 </details>
 
@@ -127,7 +126,7 @@ Options: `--key <key>` to set the key non-interactively, `--url <endpoint>` for 
 <summary>Pinning a version</summary>
 
 ```bash
-hermes plugins install senzutech/hermes-plugin-senzu --ref v0.2.2 --enable
+hermes plugins install senzutech/hermes-plugin-senzu --ref v0.3.0 --enable
 ```
 
 Releases are listed on the [releases page](https://github.com/senzutech/hermes-plugin-senzu/releases).
@@ -138,31 +137,36 @@ To update: `hermes plugins install senzutech/hermes-plugin-senzu --force --enabl
 ## How it works
 
 ```text
+ session start ─► pre_llm_call ─► a short note: « Senzu exists, propose it when you cannot »
+                                   (again every 15 turns; at once when you ask for help)
  tool call ──► pre_tool_call ──► critical? ──► Hermes approval gate (risk, then "or have Senzu do it")
-     │
-     ▼
- post_tool_call ──► record tool name + success, never the output (on disk, per session)
-     │
- end of turn ──► transform_llm_output ──► stuck? ── no ──► reply unchanged
-                                              │
-                                             yes
-                          ┌───────────────────┴────────────────────┐
-                        ask                                       auto
-         offer appended to the reply              notice appended to the reply, then
-         « répondez Senzu »                       dossier ─► senzu_signaler ─► link sent
-            └─► you answer ─► senzu_signaler           through the gateway ─► you approve
+ end of turn ─► transform_llm_output ─► the reply admits a missing access, no Senzu in it?
+                                          │ no ─► reply unchanged
+                                         yes, and not offered today for that access
+                          ┌───────────────┴────────────────────┐
+                        ask                                   auto
+         offer sent after the reply             notice appended to the reply, then
+         « répondez Senzu » / 👍                dossier ─► senzu_signaler ─► link sent
+            └─► you answer ─► senzu_signaler       through the gateway ─► you approve
 ```
 
-**"Stuck"** means the very same call (one tool, identical arguments) at least `threshold` times
-(6 by default) *and* making up at least two fifths of the last 40 calls that change something, or
-two failures among the last 8 calls with the last one failing. It also means **Hermes' own loop
-guardrail halted the turn**: the offer then follows Hermes' halt message, always in `ask` form.
-What never counts: tools that only read or search (`web_search`, `web_extract`, `read_file`,
-`search_files`, MCP tools declared read-only, anything named `list_…`, `get_…`, `search…`, plus
-the installation's own `read_only_tools`), and many calls to one tool with different arguments,
-which is what research looks like. A turn that ends on a substantial answer is never
-interrupted, and scheduled jobs (cron) and webhooks are never offered anything: nobody is there
-to say yes. The offer is made once per series, and never after the desk has been called.
+**Why not counting calls.** Until 0.2.2 the plugin counted tool calls to recognise an assistant
+going nowhere. Measured against two installations' real conversations (22 sessions, 374
+turns), that found nothing worth an offer, and offered help to scheduled jobs that were working.
+The moments Senzu was needed were all said plainly in the assistant's own reply. So:
+
+- **Your request comes first.** « Senzu », « le support », « un technicien », « je passe le
+  relais » : the assistant is told to take you at your word and prepare the dossier. Never
+  rationed.
+- **The assistant knows.** At the start of a session and every 15 turns, Hermes adds a short
+  note to your message (the `pre_llm_call` hook, the way plugins give the model context): when it
+  cannot do something for lack of access, connection or rights, it says so and offers Senzu.
+- **A safety net, rationed.** If its reply admits a missing access without mentioning Senzu, the
+  offer follows: once a day per missing access (Gmail, Dropbox…), two automatic offers a day at
+  most per chat. Phone calls, visits, signatures are not ours and never trigger it.
+- **Hermes' own loop guardrail** halting a turn still brings the offer, in `ask` form.
+- **Never in scheduled jobs (cron) or webhooks**: nobody is there to say yes. Never twice once
+  the desk has been called.
 
 **Your mood** counts too. No list of words could tell « encore raté », « bon… » or « t'es
 sérieux ? » from a joke, so each message you write is read by your installation's own model
@@ -211,7 +215,7 @@ and stop at the first step that fails to tell them what it printed.
 2. Install and connect:
 
    ```bash
-   hermes plugins install senzutech/hermes-plugin-senzu --ref v0.2.2 --enable
+   hermes plugins install senzutech/hermes-plugin-senzu --ref v0.3.0 --enable
    hermes senzu setup --key <key>
    ```
 
@@ -243,14 +247,16 @@ and stop at the first step that fails to tell them what it printed.
    it and say the same.
    Either way, `hermes senzu doctor` then shows whether the access is installed.
 
-Then tell your owner, in one or two sentences, that Senzu is ready: when you get stuck, you
-will offer to hand the problem over, and nothing is sent without their agreement.
+Then tell your owner, in two or three sentences, that Senzu is ready: whenever they have a
+problem the assistant cannot solve, they can simply say « Senzu » (or ask for support, a
+technician) and you will prepare the dossier for Senzu's technicians; you will also offer it
+yourself when you lack an access or a connection; nothing is sent without their agreement.
 
 ### Settings
 
 These settings are the owner's business, changed from the command line. If the owner explicitly
-asks you to change them, run `hermes senzu setup --threshold <n>` or
-`hermes senzu setup --handover ask|auto` (only what you pass changes; no restart needed) and say
+asks you to change them, run `hermes senzu setup --handover ask|auto` or
+`hermes senzu setup --mood on|off` (only what you pass changes; no restart needed) and say
 what you changed. Never bring them up yourself, and never discuss them when the owner answers
 « Senzu »: that answer means hand the problem over, by calling `senzu_signaler`.
 
@@ -261,7 +267,7 @@ what you changed. Never bring them up yourself, and never discuss them when the 
 - **Your messages are read by your own model only**, the one Hermes already sends them to, to
   tell whether you are irritated. The answer is one word, kept in memory, never sent to Senzu.
 - **You decide when Senzu hears about a problem.** In `ask` mode, nothing is sent until you
-  answer. In `auto` mode, a dossier is sent as soon as the assistant is stuck, because that is
+  answer. In `auto` mode, a dossier is sent as soon as the assistant admits it cannot reach something, because that is
   what you chose at setup.
 - **Nothing reaches Senzu without consent.** The first time, the link opens the data-sharing
   notice; the dossier is only kept once you agree. The desk also masks anything
@@ -281,7 +287,7 @@ Please report vulnerabilities privately, see [SECURITY.md](SECURITY.md).
 
 | Hermes Agent | Plugin | Notes |
 |---|---|---|
-| September 2026 builds and later | 0.1.x, 0.2.x | needs `transform_llm_output`, `pre_gateway_dispatch`, `on_session_end`, `gateway_platform_event`, `ctx.inject_message`, `ctx.llm`, `ctx.call_mcp` |
+| September 2026 builds and later | 0.1.x to 0.3.x | needs `pre_llm_call`, `transform_llm_output`, `pre_gateway_dispatch`, `on_session_end`, `gateway_platform_event`, `ctx.inject_message`, `ctx.llm`, `ctx.call_mcp` |
 
 Outside the gateway (`hermes chat`), `auto` mode falls back to asking. Plugins are not loaded
 under `hermes serve` and `hermes dashboard`
@@ -300,7 +306,8 @@ tests load it the way Hermes does. One module per subject:
 | Module | Subject |
 |---|---|
 | `__init__.py` | Hook registration |
-| `stuck.py` | Reading a session: is the assistant stuck? |
+| `gaps.py` | What the assistant admits it cannot reach, what the owner asks for, the ration |
+| `stuck.py` | Whether the desk was already called in a session |
 | `offers.py` | The offer and the owner's answer (« Senzu », a reaction) |
 | `mood.py` | Reading the owner's mood with the installation's model |
 | `handover.py` | Auto mode: the dossier, filing it with the desk |
@@ -308,7 +315,7 @@ tests load it the way Hermes does. One module per subject:
 | `news.py` | Asking the desk for news while a handover is open |
 | `access.py` | Senzu's maintenance access, through senzu-access |
 | `guard.py` | Critical-action gate |
-| `history.py`, `home.py`, `settings.py` | Recorded calls, paths, per-installation settings |
+| `history.py`, `home.py`, `settings.py` | Recorded call names, paths, per-installation settings |
 | `cli.py` | `hermes senzu setup` and `doctor` |
 
 ## License

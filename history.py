@@ -9,7 +9,7 @@ import time
 from pathlib import Path
 
 from . import home
-from .stuck import HAMMER_WINDOW, Call, calls_from_json
+from .stuck import WINDOW, Call, calls_from_json
 
 log = logging.getLogger("hermes_plugins.senzu")
 
@@ -32,10 +32,7 @@ def load(session_id: str) -> list[Call]:
 
 def save(session_id: str, calls: list[Call]) -> None:
     path = _file(session_id)
-    rows = [
-        {"tool": call.tool, "failed": call.failed, "sig": call.signature, "ro": call.read_only}
-        for call in calls[-HAMMER_WINDOW:]
-    ]
+    rows = [{"tool": call.tool, "failed": call.failed} for call in calls[-WINDOW:]]
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         temporary = path.with_suffix(".tmp")

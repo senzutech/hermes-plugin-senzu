@@ -5,7 +5,7 @@ import threading
 import pytest
 import senzu
 from fakes import FakeContext, _event, _gateway, _Inline
-from senzu import channel, mood, offers, settings
+from senzu import channel, gaps, mood, offers, settings
 
 
 class MoodContext(FakeContext):
@@ -31,6 +31,7 @@ def owner(tmp_path, monkeypatch):
         mood._recent.pop(chat)
     mood._signs.clear()
     mood._due.clear()
+    monkeypatch.setattr(senzu, "_ration", gaps.Ration())
     adapter, loop = _gateway(tmp_path)
     ctx = MoodContext()
     senzu.register(ctx)  # before threads run inline: the news checker must stay in the background

@@ -4,7 +4,6 @@ import sys
 import types
 
 import pytest
-import senzu
 from senzu import settings
 
 
@@ -29,35 +28,21 @@ def config(monkeypatch):
 
 
 def test_defaults_without_any_config(config):
-    assert settings.current() == {"threshold": 6, "handover": "ask", "mood": "on"}
+    assert settings.current() == {"handover": "ask", "mood": "on"}
 
 
 def test_change_writes_only_what_it_is_given(config):
-    assert settings.change(threshold=12) == {"threshold": 12, "handover": "ask", "mood": "on"}
-    assert settings.change(handover="auto")["threshold"] == 12
+    assert settings.change(handover="auto") == {"handover": "auto", "mood": "on"}
+    assert settings.change(mood="off") == {"handover": "auto", "mood": "off"}
 
 
-def test_out_of_range_is_refused_and_nothing_is_written(config):
-    with pytest.raises(ValueError, match="between 3 and 50"):
-        settings.change(threshold=2)
-    assert settings.threshold() == 6
+def test_an_unknown_value_is_refused_and_nothing_is_written(config):
+    with pytest.raises(ValueError):
+        settings.change(handover="sometimes")
+    assert settings.mode() == "ask"
 
 
-def test_a_garbled_value_in_config_falls_back_to_the_default(config):
-    config.setdefault("plugins", {}).setdefault("entries", {})["senzu"] = {"threshold": "beaucoup"}
-    assert settings.threshold() == 6
-
-
-def test_a_higher_threshold_takes_effect_on_the_next_reply(config, tmp_path, monkeypatch):
-    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
-    settings.change(threshold=10)
-    for _ in range(7):
-        senzu.on_tool_result(
-            tool_name="terminal", session_id="s", status="ok", args={"command": "npm i"}
-        )
-    assert senzu.on_reply(response_text="Je réessaie.", session_id="s") is None
-    for _ in range(3):
-        senzu.on_tool_result(
-            tool_name="terminal", session_id="s", status="ok", args={"command": "npm i"}
-        )
-    assert "10 fois" in senzu.on_reply(response_text="Je réessaie.", session_id="s")
+def test_a_setting_from_an_older_version_is_ignored(config):
+    """``threshold`` meant something until 0.2.2; a config that still has it reads fine."""
+    config.setdefault("plugins", {}).setdefault("entries", {})["senzu"] = {"threshold": "20"}
+    assert settings.current() == {"handover": "ask", "mood": "on"}

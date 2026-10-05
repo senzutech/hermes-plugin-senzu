@@ -1,13 +1,15 @@
 name: senzu
-version: "0.2.2"
+version: "0.3.0"
 description: >-
-  Hands a stuck assistant over to Senzu, the people who maintain it: a warning before critical
-  actions, and a handover offer when the assistant keeps hammering at a problem it cannot solve.
+  Hands what the assistant cannot do over to Senzu, the people who maintain it: on request at
+  any time, when the assistant lacks an access or a connection, and a warning before critical
+  actions.
 author: Senzu
 homepage: https://github.com/senzutech/hermes-plugin-senzu
 provides_hooks:
   - pre_tool_call
   - post_tool_call
+  - pre_llm_call
   - pre_gateway_dispatch
   - transform_llm_output
   - post_llm_call

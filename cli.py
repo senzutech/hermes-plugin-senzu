@@ -24,11 +24,6 @@ def setup_parser(parser: argparse.ArgumentParser) -> None:
     setup.add_argument("--key", help=f"API key given by Senzu (default: {KEY} from .env)")
     setup.add_argument("--url", default=DEFAULT_URL, help="MCP endpoint of the Senzu desk")
     setup.add_argument(
-        "--threshold",
-        type=int,
-        help="calls to one same tool before Senzu is offered (default 6, from 3 to 50)",
-    )
-    setup.add_argument(
         "--handover",
         choices=("ask", "auto"),
         help="ask: offer and wait for the owner's « Senzu » (default); "
@@ -73,15 +68,12 @@ def _setup(args: argparse.Namespace) -> int:
     ):
         set_config_value(key, value, force=True)
     try:
-        chosen = settings.change(args.threshold, args.handover, args.mood)
+        chosen = settings.change(args.handover, args.mood)
     except ValueError as error:
         print(f"✗ {error}")
         return 1
     mode = "envoi automatique du dossier" if chosen["handover"] == "auto" else "sur votre accord"
-    print(
-        f"✓ Bureau Senzu branché : offre après {chosen['threshold']} appels au même outil, "
-        f"reprise {mode}. Redémarrez le gateway : hermes gateway restart"
-    )
+    print(f"✓ Bureau Senzu branché, reprise {mode}. Redémarrez le gateway : hermes gateway restart")
     return 0
 
 
@@ -102,7 +94,7 @@ def _doctor() -> int:
     for label, ok in checks:
         print(f"{'✓' if ok else '✗'} {label}")
     handover = "automatique" if settings.mode() == settings.AUTO else "sur votre accord"
-    print(f"• Reprise par Senzu : {handover}, offre après {settings.threshold()} appels")
+    print(f"• Reprise par Senzu : {handover}")
     listening = "activée" if settings.mood() else "désactivée"
     print(f"• Lecture de l'agacement par le modèle : {listening}")
     state = access.status()
