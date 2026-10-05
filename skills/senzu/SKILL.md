@@ -1,11 +1,7 @@
 ---
 name: senzu
-description: >-
-  Hand a problem over to Senzu, the technicians who maintain this assistant and its server.
-  Use it when you cannot do what is asked because an access, a connection, a right or an
-  integration is missing (a mailbox, Dropbox, WhatsApp, a CRM, an API key, read-only access), a
-  tool or the server is broken, a site or service blocks you, or the same thing keeps failing;
-  and whenever the person asks for help, support, a technician, their provider, or Senzu by name.
+# Hermes shows 60 characters of it in the skills index: the trigger has to fit.
+description: Bloqué (accès, panne, outil) ou on demande Senzu ou Édouard
 version: 0.4.0
 author: Senzu
 license: MIT
@@ -26,7 +22,8 @@ personal. They do not do the work itself when you can do it.
 - You cannot do what is asked for lack of an access, a connection, a right or an integration,
   or because a tool, the server or a service is broken or blocks you.
 - You have tried and it keeps failing.
-- The person asks for help, support, a technician, their provider, or says « Senzu ».
+- The person asks for help, support, a technician, their provider, Senzu, or Édouard (who runs
+  Senzu): « j'aimerais qu'Édouard intervienne », « demande à Senzu », « appelle le support ».
 
 When the person asks, do it every time. When you are the one noticing, say plainly what you
 cannot do, then offer Senzu in one sentence; if they decline, do not bring it up again for
