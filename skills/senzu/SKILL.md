@@ -2,7 +2,7 @@
 name: senzu
 # Hermes shows 60 characters of it in the skills index: the trigger has to fit.
 description: Bloqué (accès, panne, outil) ou on demande Senzu ou Édouard
-version: 0.4.1
+version: 0.4.2
 author: Senzu
 license: MIT
 metadata:
@@ -45,9 +45,11 @@ installation in alpha, nothing is billed: say so and give no amount.
 3. Call `mcp__senzu__senzu_signaler` with:
    - `objectif`, `blocage`, `tentatives`, `systemes`, `urgence`, `climat` from the conversation;
    - `extrait`: their own words, one sentence;
-   - the facts the scale prices: `nature` (reglage, connexion, automatisation, donnees,
-     diagnostic, contournement, sur_mesure), `serveur`, `cause_inconnue`, `irreversible`,
-     `tiers`.
+   - the facts the scale prices: `nature` (`reglage` for a setting or a simple action such as
+     a restart; `connexion` only for a service not connected yet; `automatisation`, `donnees`,
+     `diagnostic`, `contournement`, `sur_mesure`), `serveur`, `cause_inconnue`,
+     `irreversible`, `tiers`. Count only what the case really needs: small jobs are small
+     tickets.
    Never a password, a key, a token or a customer identifier.
 4. Give them the link it returns, for them only. The first time, it asks for their consent to
    share the summary; afterwards it lets them validate, or pay, the intervention. Nothing starts

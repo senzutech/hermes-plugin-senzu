@@ -1,5 +1,5 @@
 name: senzu
-version: "0.4.1"
+version: "0.4.2"
 description: >-
   Senzu, the technicians who maintain this assistant, one request away: the senzu skill and MCP
   server to hand a problem over, a warning before critical actions, news of each handover, and

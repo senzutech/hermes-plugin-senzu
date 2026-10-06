@@ -6,6 +6,13 @@ All notable changes to this plugin are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-10-06
+
+### Changed
+
+- The skill tells `reglage` (a setting, a restart) from `connexion` (a service not connected
+  yet), and to count only what the case needs: a restart had been priced as a connection.
+
 ## [0.4.1] - 2026-10-05
 
 ### Fixed
@@ -163,7 +170,8 @@ Only what Hermes expects of a plugin, and nothing on the side.
 - `hermes senzu setup` to connect the Senzu MCP server and pick the mode, `hermes senzu doctor`
   to check the installation.
 
-[Unreleased]: https://github.com/senzutech/hermes-plugin-senzu/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/senzutech/hermes-plugin-senzu/compare/v0.4.2...HEAD
+[0.4.2]: https://github.com/senzutech/hermes-plugin-senzu/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/senzutech/hermes-plugin-senzu/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/senzutech/hermes-plugin-senzu/compare/v0.3.3...v0.4.0
 [0.3.3]: https://github.com/senzutech/hermes-plugin-senzu/compare/v0.3.2...v0.3.3
