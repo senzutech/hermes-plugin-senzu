@@ -93,11 +93,14 @@ Running `setup` again updates the skill.
 <details>
 <summary>Pinning a version</summary>
 
+Hermes pins a plugin by the full commit, not by a tag name: take the 40-character commit of a
+release on the [releases page](https://github.com/senzutech/hermes-plugin-senzu/releases)
+(`git rev-list -n1 v0.4.2` in a clone gives it).
+
 ```bash
-hermes plugins install senzutech/hermes-plugin-senzu --ref v0.4.2 --enable
+hermes plugins install senzutech/hermes-plugin-senzu --ref <40-character commit> --enable
 ```
 
-Releases are listed on the [releases page](https://github.com/senzutech/hermes-plugin-senzu/releases).
 To update: `hermes plugins install senzutech/hermes-plugin-senzu --force --enable`, then
 `hermes senzu setup` for the skill of the new version.
 
@@ -161,7 +164,7 @@ and stop at the first step that fails to tell them what it printed.
 2. Install and connect:
 
    ```bash
-   hermes plugins install senzutech/hermes-plugin-senzu --ref v0.4.2 --enable
+   hermes plugins install senzutech/hermes-plugin-senzu --enable
    hermes senzu setup --key <key>
    ```
 
